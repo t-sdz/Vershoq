@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>AES Chiffrement/Déchiffrement</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        textarea, input { width: 100%; padding: 10px; margin: 10px 0; }
+        button { padding: 10px 20px; margin: 10px 0; }
+        .result { margin-top: 20px; white-space: pre-wrap; background: #f0f0f0; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Chiffrement AES en Python</h1>
+
+    <label>Message :</label>
+    <textarea id="message" rows="4"></textarea>
+
+    <label>Clé (16 caractères) :</label>
+    <input type="text" id="key" maxlength="16">
+
+    <button onclick="encrypt()">Chiffrer</button>
+    <button onclick="decrypt()">Déchiffrer</button>
+
+    <div class="result" id="result"></div>
+
+    <script>
+        async function encrypt() {
+            const message = document.getElementById("message").value;
+            const key = document.getElementById("key").value;
+
+            const response = await fetch("/encrypt", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message, key })
+            });
+
+            const data = await response.json();
+            document.getElementById("result").innerText = data.result || data.error;
+        }
+
+        async function decrypt() {
+            const message = document.getElementById("message").value;
+            const key = document.getElementById("key").value;
+
+            const response = await fetch("/decrypt", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message, key })
+            });
+
+            const data = await response.json();
+            document.getElementById("result").innerText = data.result || data.error;
+        }
+    </script>
+</body>
+</html>
