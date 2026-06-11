@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "111560591976",
-    "project_id": "vershoq25-d6d44",
-    "storage_bucket": "vershoq25-d6d44.firebasestorage.app"
+    "project_number": "580924663030",
+    "project_id": "vershoq",
+    "storage_bucket": "vershoq.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:111560591976:android:c25982d34ee4e39b18c9dd",
+        "mobilesdk_app_id": "1:580924663030:android:b73a3be7bae831dcb9f8d7",
         "android_client_info": {
           "package_name": "com.example.vershoq"
         }
@@ -15,7 +15,26 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyCX9Ldg-qofp_v0jGFvenvdo_bzq4850PE"
+          "current_key": "AIzaSyBiJcbNOF1FKI0y_LnrYyRqya2ZAuAoPt8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:580924663030:android:1f3efec201531aa0b9f8d7",
+        "android_client_info": {
+          "package_name": "com.exemple.vershoq"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBiJcbNOF1FKI0y_LnrYyRqya2ZAuAoPt8"
         }
       ],
       "services": {
