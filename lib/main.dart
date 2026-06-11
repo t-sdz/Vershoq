@@ -54,27 +54,49 @@ class VershoqApp extends StatelessWidget {
   }
 
   ThemeData _buildTheme() {
+    // BeReal-style: pur noir, blanc, typographie franche
     return ThemeData(
       useMaterial3: true,
       colorScheme: const ColorScheme.dark(
-        primary: Color(0xFFFF6B6B),
-        secondary: Color(0xFFFFE66D),
-        surface: Color(0xFF1A1A2E),
+        primary: Colors.white,
+        onPrimary: Colors.black,
+        secondary: Colors.white,
+        surface: Color(0xFF111111),
         onSurface: Colors.white,
       ),
-      scaffoldBackgroundColor: const Color(0xFF0F0F1A),
+      scaffoldBackgroundColor: Colors.black,
       appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF0F0F1A),
+        backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         elevation: 0,
+        centerTitle: false,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+      ),
+      sliderTheme: const SliderThemeData(
+        activeTrackColor: Colors.white,
+        thumbColor: Colors.white,
+        inactiveTrackColor: Colors.white24,
       ),
       textTheme: const TextTheme(
         displayLarge: TextStyle(
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w900,
           color: Colors.white,
-          letterSpacing: -1,
+          letterSpacing: -1.5,
         ),
-        titleLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        titleLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
         bodyMedium: TextStyle(color: Colors.white70),
       ),
     );

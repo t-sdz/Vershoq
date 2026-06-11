@@ -200,8 +200,9 @@ class _StatChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A2E),
-        borderRadius: BorderRadius.circular(12),
+        color: const Color(0xFF111111),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white12),
       ),
       child: Row(
         children: [
@@ -236,19 +237,8 @@ class _HeroButton extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFFFF6B6B), Color(0xFFFF8E53)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFFF6B6B).withOpacity(0.4),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
         ),
         child: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -258,7 +248,7 @@ class _HeroButton extends StatelessWidget {
             Text(
               'Tester un shot',
               style: TextStyle(
-                color: Colors.white,
+                color: Colors.black,
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
               ),
@@ -266,7 +256,7 @@ class _HeroButton extends StatelessWidget {
             SizedBox(height: 4),
             Text(
               'Ouvre la caméra avec un prénom aléatoire',
-              style: TextStyle(color: Colors.white70, fontSize: 14),
+              style: TextStyle(color: Colors.black54, fontSize: 14),
             ),
           ],
         ),

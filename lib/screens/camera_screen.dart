@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/storage_service.dart';
 import 'result_screen.dart';
@@ -20,15 +22,29 @@ class _CameraScreenState extends State<CameraScreen>
     with WidgetsBindingObserver {
   CameraController? _controller;
   List<CameraDescription> _cameras = [];
+  int _cameraIndex = 0;
   bool _isInitialized = false;
   bool _isTakingPhoto = false;
   String? _errorMessage;
+
+  // Countdown
+  bool _countdownEnabled = false;
+  int _countdownSeconds = 15;
+  int _remaining = 0;
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initCamera();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    final prefs = await SharedPreferences.getInstance();
+    _countdownEnabled = prefs.getBool('countdown_enabled') ?? false;
+    _countdownSeconds = prefs.getInt('countdown_seconds') ?? 15;
+    await _initCamera();
   }
 
   Future<void> _initCamera() async {
@@ -38,12 +54,12 @@ class _CameraScreenState extends State<CameraScreen>
         setState(() => _errorMessage = 'Aucune caméra disponible');
         return;
       }
-      // Prefer back camera
-      final camera = _cameras.firstWhere(
+      // Prefer back camera as the starting lens
+      _cameraIndex = _cameras.indexWhere(
         (c) => c.lensDirection == CameraLensDirection.back,
-        orElse: () => _cameras.first,
       );
-      await _startController(camera);
+      if (_cameraIndex < 0) _cameraIndex = 0;
+      await _startController(_cameras[_cameraIndex]);
     } catch (e) {
       setState(() => _errorMessage = 'Impossible d\'accéder à la caméra : $e');
     }
@@ -59,10 +75,38 @@ class _CameraScreenState extends State<CameraScreen>
     _controller = controller;
     try {
       await controller.initialize();
-      if (mounted) setState(() => _isInitialized = true);
+      if (mounted) {
+        setState(() => _isInitialized = true);
+        _maybeStartCountdown();
+      }
     } on CameraException catch (e) {
       setState(() => _errorMessage = 'Erreur caméra : ${e.description}');
     }
+  }
+
+  void _maybeStartCountdown() {
+    if (!_countdownEnabled || _timer != null) return;
+    _remaining = _countdownSeconds;
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      setState(() => _remaining--);
+      if (_remaining <= 3 && _remaining > 0) {
+        HapticFeedback.lightImpact();
+      }
+      if (_remaining <= 0) {
+        timer.cancel();
+        // Temps écoulé : capture automatique pour forcer la spontanéité
+        _takePhoto();
+      }
+    });
+  }
+
+  Future<void> _flipCamera() async {
+    if (_cameras.length < 2 || _isTakingPhoto) return;
+    _cameraIndex = (_cameraIndex + 1) % _cameras.length;
+    await _controller?.dispose();
+    setState(() => _isInitialized = false);
+    await _startController(_cameras[_cameraIndex]);
   }
 
   @override
@@ -79,6 +123,7 @@ class _CameraScreenState extends State<CameraScreen>
 
   @override
   void dispose() {
+    _timer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
     super.dispose();
@@ -92,9 +137,8 @@ class _CameraScreenState extends State<CameraScreen>
       return;
     }
 
+    _timer?.cancel();
     setState(() => _isTakingPhoto = true);
-
-    // Haptic feedback
     HapticFeedback.heavyImpact();
 
     try {
@@ -140,76 +184,71 @@ class _CameraScreenState extends State<CameraScreen>
       );
     }
 
+    final topPad = MediaQuery.of(context).padding.top;
+    final bottomPad = MediaQuery.of(context).padding.bottom;
+
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Full-screen viewfinder
-        CameraPreview(_controller!),
+        // Viewfinder BeReal : cadre arrondi plein écran
+        Padding(
+          padding: EdgeInsets.only(top: topPad + 70, bottom: bottomPad + 150),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(28),
+            child: CameraPreview(_controller!),
+          ),
+        ),
 
-        // Dark gradient at top for the name label
+        // En-tête : prénom à capturer + compte à rebours
         Positioned(
-          top: 0,
+          top: topPad + 12,
           left: 0,
           right: 0,
-          child: Container(
-            height: 220,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Colors.black87, Colors.transparent],
+          child: _Header(
+            personName: widget.personName,
+            countdownEnabled: _countdownEnabled,
+            remaining: _remaining,
+          ),
+        ),
+
+        // Bas : flip caméra + bouton capture
+        Positioned(
+          bottom: bottomPad + 36,
+          left: 0,
+          right: 0,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(width: 64),
+              Expanded(
+                child: Center(
+                  child: _CaptureButton(
+                    onPressed: _isTakingPhoto ? null : _takePhoto,
+                    isLoading: _isTakingPhoto,
+                  ),
+                ),
               ),
-            ),
-          ),
-        ),
-
-        // Name label at top
-        Positioned(
-          top: MediaQuery.of(context).padding.top + 16,
-          left: 0,
-          right: 0,
-          child: _NameLabel(personName: widget.personName),
-        ),
-
-        // Bottom gradient + capture button
-        Positioned(
-          bottom: 0,
-          left: 0,
-          right: 0,
-          child: Container(
-            height: 200,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: [Colors.black87, Colors.transparent],
+              SizedBox(
+                width: 64,
+                child: _cameras.length > 1
+                    ? _FlipButton(onPressed: _isTakingPhoto ? null : _flipCamera)
+                    : const SizedBox.shrink(),
               ),
-            ),
+            ],
           ),
         ),
 
         Positioned(
-          bottom: MediaQuery.of(context).padding.bottom + 32,
-          left: 0,
-          right: 0,
-          child: _CaptureButton(
-            onPressed: _isTakingPhoto ? null : _takePhoto,
-            isLoading: _isTakingPhoto,
-          ),
-        ),
-
-        // "No retake" warning
-        Positioned(
-          bottom: MediaQuery.of(context).padding.bottom + 160,
+          bottom: bottomPad + 120,
           left: 0,
           right: 0,
           child: const Text(
-            'Une seule chance — fais-la compter !',
+            'Une seule chance — pas de seconde prise',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.white54,
               fontSize: 13,
-              letterSpacing: 0.5,
+              letterSpacing: 0.3,
             ),
           ),
         ),
@@ -218,42 +257,82 @@ class _CameraScreenState extends State<CameraScreen>
   }
 }
 
-class _NameLabel extends StatelessWidget {
+class _Header extends StatelessWidget {
   final String personName;
+  final bool countdownEnabled;
+  final int remaining;
 
-  const _NameLabel({required this.personName});
+  const _Header({
+    required this.personName,
+    required this.countdownEnabled,
+    required this.remaining,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final urgent = remaining <= 3;
     return Column(
       children: [
-        const Text(
-          '📸 PRENDS EN PHOTO',
-          style: TextStyle(
-            color: Colors.white60,
-            fontSize: 12,
-            letterSpacing: 3,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 8),
         Text(
           personName,
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 44,
+            fontSize: 26,
             fontWeight: FontWeight.w900,
-            letterSpacing: -1,
-            shadows: [
-              Shadow(
-                color: Colors.black54,
-                blurRadius: 12,
-                offset: Offset(0, 2),
-              ),
-            ],
+            letterSpacing: -0.5,
           ),
         ),
+        const SizedBox(height: 2),
+        const Text(
+          'capture maintenant',
+          style: TextStyle(
+            color: Colors.white54,
+            fontSize: 12,
+            letterSpacing: 1,
+          ),
+        ),
+        if (countdownEnabled) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: urgent ? Colors.red : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '⏱ $remaining s',
+              style: TextStyle(
+                color: urgent ? Colors.white : Colors.black,
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+            ),
+          ),
+        ],
       ],
+    );
+  }
+}
+
+class _FlipButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  const _FlipButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: Colors.white12,
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white24),
+        ),
+        child: const Icon(Icons.cameraswitch_outlined,
+            color: Colors.white, size: 26),
+      ),
     );
   }
 }
@@ -266,36 +345,35 @@ class _CaptureButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: GestureDetector(
-        onTap: onPressed,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          width: isLoading ? 72 : 80,
-          height: isLoading ? 72 : 80,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isLoading ? Colors.white54 : Colors.white,
-            border: Border.all(color: Colors.white54, width: 4),
-            boxShadow: isLoading
-                ? []
-                : [
-                    BoxShadow(
-                      color: Colors.white.withOpacity(0.3),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                    ),
-                  ],
-          ),
+    return GestureDetector(
+      onTap: onPressed,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: isLoading ? 72 : 82,
+        height: isLoading ? 72 : 82,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.transparent,
+          border: Border.all(color: Colors.white, width: 5),
+        ),
+        child: Center(
           child: isLoading
-              ? const Padding(
-                  padding: EdgeInsets.all(20),
+              ? const SizedBox(
+                  width: 32,
+                  height: 32,
                   child: CircularProgressIndicator(
                     strokeWidth: 3,
-                    color: Colors.black54,
+                    color: Colors.white,
                   ),
                 )
-              : null,
+              : Container(
+                  width: 64,
+                  height: 64,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                  ),
+                ),
         ),
       ),
     );

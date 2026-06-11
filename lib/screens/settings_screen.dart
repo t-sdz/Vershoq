@@ -16,6 +16,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _startHour = 9;
   int _endHour = 21;
   int _dailyCount = 3;
+  bool _countdownEnabled = false;
+  int _countdownSeconds = 15;
   bool _loading = true;
 
   @override
@@ -33,6 +35,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _startHour = prefs.getInt('notif_start_hour') ?? 9;
         _endHour = prefs.getInt('notif_end_hour') ?? 21;
         _dailyCount = prefs.getInt('notif_daily_count') ?? 3;
+        _countdownEnabled = prefs.getBool('countdown_enabled') ?? false;
+        _countdownSeconds = prefs.getInt('countdown_seconds') ?? 15;
         _loading = false;
       });
     }
@@ -49,6 +53,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SnackBar(content: Text('Notifications replanifiées !')),
       );
     }
+  }
+
+  Future<void> _saveCountdownSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('countdown_enabled', _countdownEnabled);
+    await prefs.setInt('countdown_seconds', _countdownSeconds);
   }
 
   Future<void> _addName() async {
@@ -117,6 +127,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
           FilledButton(
             onPressed: _saveNotifSettings,
             child: const Text('Appliquer et replanifier'),
+          ),
+          const SizedBox(height: 32),
+          _SectionTitle('Compte à rebours'),
+          const SizedBox(height: 8),
+          Card(
+            color: const Color(0xFF111111),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Activer le compte à rebours',
+                        style: TextStyle(color: Colors.white)),
+                    subtitle: const Text(
+                      'Capture automatique à la fin du temps',
+                      style: TextStyle(color: Colors.white38, fontSize: 12),
+                    ),
+                    value: _countdownEnabled,
+                    activeColor: Colors.white,
+                    activeTrackColor: Colors.green,
+                    onChanged: (v) {
+                      setState(() => _countdownEnabled = v);
+                      _saveCountdownSettings();
+                    },
+                  ),
+                  if (_countdownEnabled)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          const Text('Durée',
+                              style: TextStyle(color: Colors.white70)),
+                          Expanded(
+                            child: Slider(
+                              value: _countdownSeconds.toDouble().clamp(5, 60),
+                              min: 5,
+                              max: 60,
+                              divisions: 11,
+                              label: '$_countdownSeconds s',
+                              onChanged: (v) => setState(
+                                  () => _countdownSeconds = v.round()),
+                              onChangeEnd: (_) => _saveCountdownSettings(),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 44,
+                            child: Text('${_countdownSeconds}s',
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 32),
           _SectionTitle('Liste des prénoms'),
