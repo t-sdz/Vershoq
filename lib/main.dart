@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -15,6 +16,14 @@ Future<void> main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+
+  // Initialise Firebase (Firestore pour les groupes).
+  // Utilise les fichiers natifs google-services.json / GoogleService-Info.plist.
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint('Firebase init échouée (groupes indisponibles) : $e');
+  }
 
   await NotificationService.init(
     onTap: (personName) {

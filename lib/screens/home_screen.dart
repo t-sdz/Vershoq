@@ -9,6 +9,7 @@ import '../services/storage_service.dart';
 import '../widgets/photo_card.dart';
 import 'camera_screen.dart';
 import 'gallery_screen.dart';
+import 'groups_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -79,6 +80,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               style: TextStyle(fontWeight: FontWeight.w900, fontSize: 32),
             ),
             actions: [
+              IconButton(
+                icon: const Icon(Icons.group_outlined),
+                tooltip: 'Groupe',
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const GroupsScreen()),
+                ).then((_) => _load()),
+              ),
               IconButton(
                 icon: const Icon(Icons.photo_library_outlined),
                 tooltip: 'Galerie',
