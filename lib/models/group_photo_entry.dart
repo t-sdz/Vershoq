@@ -3,7 +3,7 @@ class GroupPhotoEntry {
   final String personName;
   final String uploaderUsername;
   final String uploaderEmail;
-  final String remoteUrl;
+  final String imageBase64;
   final DateTime timestamp;
 
   const GroupPhotoEntry({
@@ -11,7 +11,7 @@ class GroupPhotoEntry {
     required this.personName,
     required this.uploaderUsername,
     required this.uploaderEmail,
-    required this.remoteUrl,
+    required this.imageBase64,
     required this.timestamp,
   });
 
@@ -21,7 +21,7 @@ class GroupPhotoEntry {
         personName: map['personName'] as String? ?? '',
         uploaderUsername: map['uploaderUsername'] as String? ?? '',
         uploaderEmail: map['uploaderEmail'] as String? ?? '',
-        remoteUrl: map['remoteUrl'] as String? ?? '',
+        imageBase64: map['imageBase64'] as String? ?? '',
         timestamp:
             DateTime.tryParse(map['timestamp'] as String? ?? '') ?? DateTime.now(),
       );
@@ -30,7 +30,7 @@ class GroupPhotoEntry {
         'personName': personName,
         'uploaderUsername': uploaderUsername,
         'uploaderEmail': uploaderEmail,
-        'remoteUrl': remoteUrl,
+        'imageBase64': imageBase64,
         'timestamp': timestamp.toIso8601String(),
       };
 }

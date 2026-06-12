@@ -1,9 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
-import 'package:http/http.dart' as http;
 
 import '../models/group_photo_entry.dart';
 import '../models/photo_entry.dart';
@@ -60,7 +59,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
     );
   }
 
-  // ── Group gallery (Firestore stream) ────────────────────────────────────────
+  // ── Group gallery ────────────────────────────────────────────────────────────
 
   Widget _buildGroupGallery() {
     return StreamBuilder<List<GroupPhotoEntry>>(
@@ -90,18 +89,16 @@ class _GalleryScreenState extends State<GalleryScreen> {
   }
 
   void _showGroupDetail(GroupPhotoEntry photo) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => _GroupDetailScreen(
-          photo: photo,
-          userEmail: _userEmail,
-          groupId: _groupId!,
-        ),
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => _GroupDetailScreen(
+        photo: photo,
+        userEmail: _userEmail,
+        groupId: _groupId!,
       ),
-    );
+    ));
   }
 
-  // ── Local gallery (offline / no group) ──────────────────────────────────────
+  // ── Local gallery ────────────────────────────────────────────────────────────
 
   Widget _buildLocalGallery() {
     if (_localEntries.isEmpty) return _emptyState();
@@ -113,25 +110,17 @@ class _GalleryScreenState extends State<GalleryScreen> {
         mainAxisSpacing: 10,
       ),
       itemCount: _localEntries.length,
-      itemBuilder: (_, i) {
-        final entry = _localEntries[i];
-        return PhotoCard(
-          entry: entry,
-          onTap: () => _showLocalDetail(entry),
-        );
-      },
+      itemBuilder: (_, i) => PhotoCard(
+        entry: _localEntries[i],
+        onTap: () => _showLocalDetail(_localEntries[i]),
+      ),
     );
   }
 
   void _showLocalDetail(PhotoEntry entry) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => _LocalDetailScreen(
-          entry: entry,
-          onDelete: _deleteLocal,
-        ),
-      ),
-    );
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => _LocalDetailScreen(entry: entry, onDelete: _deleteLocal),
+    ));
   }
 
   Future<void> _deleteLocal(PhotoEntry entry) async {
@@ -167,6 +156,7 @@ class _GroupPhotoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bytes = base64Decode(photo.imageBase64);
     return GestureDetector(
       onTap: onTap,
       child: ClipRRect(
@@ -174,22 +164,7 @@ class _GroupPhotoCard extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            CachedNetworkImage(
-              imageUrl: photo.remoteUrl,
-              fit: BoxFit.cover,
-              placeholder: (_, __) => Container(
-                color: const Color(0xFF111111),
-                child: const Center(
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white24),
-                ),
-              ),
-              errorWidget: (_, __, ___) => Container(
-                color: const Color(0xFF111111),
-                child: const Icon(Icons.broken_image_outlined,
-                    color: Colors.white24),
-              ),
-            ),
+            Image.memory(bytes, fit: BoxFit.cover),
             Positioned(
               bottom: 0,
               left: 0,
@@ -237,8 +212,8 @@ class _GroupDetailScreen extends StatelessWidget {
 
   Future<void> _download(BuildContext context) async {
     try {
-      final response = await http.get(Uri.parse(photo.remoteUrl));
-      await Gal.putImageBytes(response.bodyBytes);
+      final bytes = base64Decode(photo.imageBase64);
+      await Gal.putImageBytes(bytes);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Photo sauvegardée dans la galerie !')),
@@ -246,9 +221,8 @@ class _GroupDetailScreen extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : $e')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     }
   }
@@ -258,21 +232,20 @@ class _GroupDetailScreen extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF111111),
-        title:
-            const Text('Supprimer ?', style: TextStyle(color: Colors.white)),
-        content: const Text('Cette photo sera supprimée pour tout le groupe.',
+        title: const Text('Supprimer ?',
+            style: TextStyle(color: Colors.white)),
+        content: const Text(
+            'Cette photo sera supprimée pour tout le groupe.',
             style: TextStyle(color: Colors.white70)),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annuler',
-                style: TextStyle(color: Colors.white38)),
-          ),
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler',
+                  style: TextStyle(color: Colors.white38))),
           TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Supprimer',
-                style: TextStyle(color: Colors.redAccent)),
-          ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Supprimer',
+                  style: TextStyle(color: Colors.redAccent))),
         ],
       ),
     );
@@ -284,7 +257,9 @@ class _GroupDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bytes = base64Decode(photo.imageBase64);
     final isUploader = photo.uploaderEmail == userEmail;
+
     return Scaffold(
       backgroundColor: Colors.black,
       extendBodyBehindAppBar: true,
@@ -298,7 +273,8 @@ class _GroupDetailScreen extends StatelessWidget {
           ),
           if (isUploader)
             IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.white70),
+              icon:
+                  const Icon(Icons.delete_outline, color: Colors.white70),
               onPressed: () => _delete(context),
             ),
         ],
@@ -307,14 +283,7 @@ class _GroupDetailScreen extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           InteractiveViewer(
-            child: CachedNetworkImage(
-              imageUrl: photo.remoteUrl,
-              fit: BoxFit.contain,
-              placeholder: (_, __) => const Center(
-                  child: CircularProgressIndicator(color: Colors.white)),
-              errorWidget: (_, __, ___) =>
-                  const Icon(Icons.broken_image_outlined, color: Colors.white24),
-            ),
+            child: Image.memory(bytes, fit: BoxFit.contain),
           ),
           Positioned(
             bottom: 40,
@@ -323,24 +292,19 @@ class _GroupDetailScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  photo.personName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Text(photo.personName,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
-                Text(
-                  'par ${photo.uploaderUsername}',
-                  style: const TextStyle(color: Colors.white54, fontSize: 14),
-                ),
+                Text('par ${photo.uploaderUsername}',
+                    style: const TextStyle(
+                        color: Colors.white54, fontSize: 14)),
                 const SizedBox(height: 2),
-                Text(
-                  _formatDate(photo.timestamp),
-                  style: const TextStyle(color: Colors.white38, fontSize: 12),
-                ),
+                Text(_formatDate(photo.timestamp),
+                    style: const TextStyle(
+                        color: Colors.white38, fontSize: 12)),
               ],
             ),
           ),
@@ -356,7 +320,7 @@ class _GroupDetailScreen extends StatelessWidget {
   }
 }
 
-// ── Local detail screen (no group) ───────────────────────────────────────────
+// ── Local detail screen ───────────────────────────────────────────────────────
 
 class _LocalDetailScreen extends StatelessWidget {
   final PhotoEntry entry;
@@ -374,9 +338,8 @@ class _LocalDetailScreen extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : $e')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
       }
     }
   }
@@ -407,8 +370,7 @@ class _LocalDetailScreen extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           InteractiveViewer(
-            child: Image.file(File(entry.localPath), fit: BoxFit.contain),
-          ),
+              child: Image.file(File(entry.localPath), fit: BoxFit.contain)),
           Positioned(
             bottom: 40,
             left: 24,
@@ -416,19 +378,15 @@ class _LocalDetailScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  entry.personName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Text(entry.personName,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
-                Text(
-                  _formatDate(entry.timestamp),
-                  style: const TextStyle(color: Colors.white54, fontSize: 14),
-                ),
+                Text(_formatDate(entry.timestamp),
+                    style: const TextStyle(
+                        color: Colors.white54, fontSize: 14)),
               ],
             ),
           ),

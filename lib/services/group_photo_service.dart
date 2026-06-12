@@ -1,7 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/group_photo_entry.dart';
@@ -15,30 +16,34 @@ class GroupPhotoService {
           .doc(groupId)
           .collection('photos');
 
-  static Future<String> uploadPhoto({
+  /// Compresses image and uploads as base64 to Firestore.
+  static Future<void> uploadPhoto({
     required File file,
     required String groupId,
     required String personName,
     required String uploaderUsername,
     required String uploaderEmail,
   }) async {
-    final id = _uuid.v4();
-    final ref = FirebaseStorage.instance
-        .ref()
-        .child('groups/$groupId/photos/$id.jpg');
+    // Compress to max 720px wide, quality 60 → typically 30-80 KB
+    final compressed = await FlutterImageCompress.compressWithFile(
+      file.absolute.path,
+      minWidth: 720,
+      minHeight: 720,
+      quality: 60,
+      keepExif: false,
+    );
+    if (compressed == null) return;
 
-    await ref.putFile(file);
-    final url = await ref.getDownloadURL();
+    final base64str = base64Encode(compressed);
+    final id = _uuid.v4();
 
     await _photosCol(groupId).doc(id).set({
       'personName': personName,
       'uploaderUsername': uploaderUsername,
       'uploaderEmail': uploaderEmail,
-      'remoteUrl': url,
+      'imageBase64': base64str,
       'timestamp': DateTime.now().toIso8601String(),
     });
-
-    return url;
   }
 
   static Stream<List<GroupPhotoEntry>> streamGroupPhotos(String groupId) {
@@ -52,11 +57,5 @@ class GroupPhotoService {
 
   static Future<void> deletePhoto(String groupId, String photoId) async {
     await _photosCol(groupId).doc(photoId).delete();
-    try {
-      await FirebaseStorage.instance
-          .ref()
-          .child('groups/$groupId/photos/$photoId.jpg')
-          .delete();
-    } catch (_) {}
   }
 }
