@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace "com.exemple.vershoq"
+    namespace "com.example.vershoq"
     compileSdk flutter.compileSdkVersion
     ndkVersion flutter.ndkVersion
 
@@ -20,7 +20,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.exemple.vershoq"
+        applicationId "com.example.vershoq"
         minSdk 21
         targetSdk flutter.targetSdkVersion
         versionCode flutter.versionCode

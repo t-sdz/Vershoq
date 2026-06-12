@@ -1,4 +1,4 @@
-package com.exemple.vershoq
+package com.example.vershoq
 
 import io.flutter.embedding.android.FlutterActivity
 
