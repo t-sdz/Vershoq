@@ -132,6 +132,25 @@ class GroupService {
     return snap.docs.map((d) => GroupMember.fromMap(d.data())).toList();
   }
 
+  static Future<void> removeMember(String groupId, String memberEmail) async {
+    try {
+      final snap = await _groups
+          .doc(groupId)
+          .collection('members')
+          .where('email', isEqualTo: memberEmail)
+          .limit(1)
+          .get();
+      if (snap.docs.isNotEmpty) {
+        await snap.docs.first.reference.delete();
+        await _groups.doc(groupId).update({
+          'memberCount': FieldValue.increment(-1),
+        });
+      }
+    } on FirebaseException catch (e) {
+      throw GroupException('Erreur Firebase : ${e.message ?? e.code}');
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Persistance locale du groupe courant
   // ---------------------------------------------------------------------------

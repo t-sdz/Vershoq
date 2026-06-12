@@ -48,6 +48,37 @@ class _GroupsScreenState extends State<GroupsScreen> {
     await _load();
   }
 
+  Future<void> _removeMember(GroupMember member) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF111111),
+        title: const Text('Supprimer le membre',
+            style: TextStyle(color: Colors.white)),
+        content: Text(
+          'Supprimer ${member.username} du groupe ?',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child:
+                const Text('Annuler', style: TextStyle(color: Colors.white38)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Supprimer',
+                style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && _current != null) {
+      await GroupService.removeMember(_current!.id, member.email);
+      await _load();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -114,6 +145,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
 
   Widget _buildCurrentGroup() {
     final group = _current!;
+    final isAdmin = _user?.email == group.createdByEmail;
+
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
@@ -159,31 +192,75 @@ class _GroupsScreenState extends State<GroupsScreen> {
           ),
         ),
         const SizedBox(height: 24),
-        Text('MEMBRES (${_members.length})',
-            style: const TextStyle(
-                color: Colors.white38,
-                fontSize: 11,
-                letterSpacing: 2,
-                fontWeight: FontWeight.bold)),
+        Row(
+          children: [
+            Text('MEMBRES (${_members.length})',
+                style: const TextStyle(
+                    color: Colors.white38,
+                    fontSize: 11,
+                    letterSpacing: 2,
+                    fontWeight: FontWeight.bold)),
+            if (isAdmin) ...[
+              const SizedBox(width: 8),
+              const Text('· ADMIN',
+                  style: TextStyle(
+                      color: Colors.white24,
+                      fontSize: 11,
+                      letterSpacing: 2,
+                      fontWeight: FontWeight.bold)),
+            ],
+          ],
+        ),
         const SizedBox(height: 8),
         ..._members.map(
           (m) => ListTile(
             contentPadding: EdgeInsets.zero,
             leading: CircleAvatar(
-              backgroundColor: Colors.white12,
+              backgroundColor: m.email == group.createdByEmail
+                  ? Colors.white24
+                  : Colors.white12,
               child: Text(
                 m.username.isNotEmpty ? m.username[0].toUpperCase() : '?',
                 style: const TextStyle(color: Colors.white),
               ),
             ),
-            title: Text(m.username,
-                style: const TextStyle(color: Colors.white)),
+            title: Row(
+              children: [
+                Text(m.username,
+                    style: const TextStyle(color: Colors.white)),
+                if (m.email == group.createdByEmail) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white12,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text('admin',
+                        style: TextStyle(
+                            color: Colors.white54,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ],
+            ),
             subtitle: Text(m.email,
-                style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                style:
+                    const TextStyle(color: Colors.white38, fontSize: 12)),
             trailing: m.email == _user?.email
                 ? const Text('toi',
-                    style: TextStyle(color: Colors.white38, fontSize: 12))
-                : null,
+                    style:
+                        TextStyle(color: Colors.white38, fontSize: 12))
+                : isAdmin && m.email != group.createdByEmail
+                    ? IconButton(
+                        icon: const Icon(Icons.remove_circle_outline,
+                            color: Colors.redAccent, size: 22),
+                        tooltip: 'Supprimer du groupe',
+                        onPressed: () => _removeMember(m),
+                      )
+                    : null,
           ),
         ),
         const SizedBox(height: 24),

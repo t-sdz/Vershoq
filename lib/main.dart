@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'firebase_options.dart';
 import 'screens/camera_screen.dart';
-import 'screens/home_screen.dart';
+import 'screens/landing_screen.dart';
 import 'services/notification_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -61,7 +61,7 @@ class VershoqApp extends StatelessWidget {
       theme: _buildTheme(),
       home: initialPersonName != null && initialPersonName!.isNotEmpty
           ? CameraScreen(personName: initialPersonName!)
-          : const HomeScreen(),
+          : const LandingScreen(),
     );
   }
 
