@@ -20,7 +20,7 @@ service cloud.firestore {
 
       match /photos/{photoId} {
         allow read: if true;
-        allow create: if request.resource.data.remoteUrl is string
+        allow create: if request.resource.data.imageBase64 is string
                       && request.resource.data.personName is string;
         allow update: if false;
         allow delete: if true;

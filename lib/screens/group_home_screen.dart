@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -180,7 +181,15 @@ class _GroupHomeScreenState extends State<GroupHomeScreen>
                 mainAxisSpacing: 8,
               ),
               itemCount: _recent.length,
-              itemBuilder: (_, i) => PhotoCard(entry: _recent[i]),
+              itemBuilder: (_, i) => PhotoCard(
+                entry: _recent[i],
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => _PhotoDetail(entry: _recent[i]),
+                  ),
+                ),
+              ),
             ),
           ] else
             _buildEmptyState(),
@@ -349,6 +358,53 @@ class _StatChip extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(color: Colors.white38, fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PhotoDetail extends StatelessWidget {
+  final PhotoEntry entry;
+  const _PhotoDetail({required this.entry});
+
+  String _fmt(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '${dt.day}/${dt.month}/${dt.year} à $h:$m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(backgroundColor: Colors.transparent),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          InteractiveViewer(
+            child: Image.file(File(entry.localPath), fit: BoxFit.contain),
+          ),
+          Positioned(
+            bottom: 40,
+            left: 24,
+            right: 24,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(entry.personName,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text(_fmt(entry.timestamp),
+                    style:
+                        const TextStyle(color: Colors.white54, fontSize: 14)),
+              ],
+            ),
           ),
         ],
       ),
