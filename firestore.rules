@@ -4,26 +4,52 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     match /groups/{groupId} {
-      allow read: if true;
-      allow create: if request.resource.data.code is string
-                    && request.resource.data.name is string;
-      allow update: if true;
+      // Lecture réservée aux utilisateurs authentifiés
+      allow read: if request.auth != null;
+
+      // Création : utilisateur connecté, et le champ createdByUid doit correspondre
+      allow create: if request.auth != null
+                    && request.resource.data.code is string
+                    && request.resource.data.name is string
+                    && request.resource.data.createdByUid == request.auth.uid;
+
+      // Mise à jour : utilisateur connecté (memberCount, etc.)
+      allow update: if request.auth != null;
+
+      // Suppression désactivée
       allow delete: if false;
 
       match /members/{memberId} {
-        allow read: if true;
-        allow create: if request.resource.data.email is string
-                      && request.resource.data.username is string;
+        allow read: if request.auth != null;
+
+        // Création : l'UID du membre doit correspondre à l'UID connecté
+        allow create: if request.auth != null
+                      && request.resource.data.uid == request.auth.uid;
+
+        // Suppression : l'utilisateur se supprime lui-même
+        //   OU l'admin du groupe (createdByUid) supprime un autre membre
+        allow delete: if request.auth != null
+                      && (resource.data.uid == request.auth.uid
+                          || get(/databases/$(database)/documents/groups/$(groupId))
+                               .data.createdByUid == request.auth.uid);
+
         allow update: if false;
-        allow delete: if true;
       }
 
       match /photos/{photoId} {
-        allow read: if true;
-        allow create: if request.resource.data.imageBase64 is string
-                      && request.resource.data.personName is string;
+        allow read: if request.auth != null;
+
+        // Upload : utilisateur connecté, uploaderUid doit correspondre
+        allow create: if request.auth != null
+                      && request.resource.data.imageBase64 is string
+                      && request.resource.data.personName is string
+                      && request.resource.data.uploaderUid == request.auth.uid;
+
+        // Suppression : seulement l'uploader de la photo
+        allow delete: if request.auth != null
+                      && resource.data.uploaderUid == request.auth.uid;
+
         allow update: if false;
-        allow delete: if true;
       }
     }
   }

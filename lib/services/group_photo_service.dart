@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:uuid/uuid.dart';
 
@@ -24,7 +25,8 @@ class GroupPhotoService {
     required String uploaderUsername,
     required String uploaderEmail,
   }) async {
-    // Compress to max 720px wide, quality 60 → typically 30-80 KB
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
     final compressed = await FlutterImageCompress.compressWithFile(
       file.absolute.path,
       minWidth: 720,
@@ -41,6 +43,7 @@ class GroupPhotoService {
       'personName': personName,
       'uploaderUsername': uploaderUsername,
       'uploaderEmail': uploaderEmail,
+      'uploaderUid': uid,
       'imageBase64': base64str,
       'timestamp': DateTime.now().toIso8601String(),
     });

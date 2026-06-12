@@ -4,6 +4,7 @@ class Group {
   final String code;
   final String createdByEmail;
   final String createdByUsername;
+  final String createdByUid;
   final DateTime createdAt;
 
   const Group({
@@ -12,6 +13,7 @@ class Group {
     required this.code,
     required this.createdByEmail,
     required this.createdByUsername,
+    required this.createdByUid,
     required this.createdAt,
   });
 
@@ -20,6 +22,7 @@ class Group {
         'code': code,
         'createdByEmail': createdByEmail,
         'createdByUsername': createdByUsername,
+        'createdByUid': createdByUid,
         'createdAt': createdAt.toIso8601String(),
       };
 
@@ -29,37 +32,39 @@ class Group {
         code: map['code'] as String? ?? '',
         createdByEmail: map['createdByEmail'] as String? ?? '',
         createdByUsername: map['createdByUsername'] as String? ?? '',
+        createdByUid: map['createdByUid'] as String? ?? '',
         createdAt: DateTime.tryParse(map['createdAt'] as String? ?? '') ??
             DateTime.now(),
       );
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        ...toMap(),
-      };
+  Map<String, dynamic> toJson() => {'id': id, ...toMap()};
 
   factory Group.fromJson(Map<String, dynamic> json) =>
       Group.fromMap(json['id'] as String, json);
 }
 
 class GroupMember {
+  final String uid;
   final String username;
   final String email;
   final DateTime joinedAt;
 
   const GroupMember({
+    required this.uid,
     required this.username,
     required this.email,
     required this.joinedAt,
   });
 
   Map<String, dynamic> toMap() => {
+        'uid': uid,
         'username': username,
         'email': email,
         'joinedAt': joinedAt.toIso8601String(),
       };
 
   factory GroupMember.fromMap(Map<String, dynamic> map) => GroupMember(
+        uid: map['uid'] as String? ?? '',
         username: map['username'] as String? ?? '',
         email: map['email'] as String? ?? '',
         joinedAt: DateTime.tryParse(map['joinedAt'] as String? ?? '') ??

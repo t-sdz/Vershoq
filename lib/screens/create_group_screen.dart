@@ -17,7 +17,6 @@ class CreateGroupScreen extends StatefulWidget {
 class _CreateGroupScreenState extends State<CreateGroupScreen> {
   final _nameCtrl  = TextEditingController();
   final _userCtrl  = TextEditingController();
-  final _emailCtrl = TextEditingController();
 
   bool _submitting = false;
   String? _error;
@@ -27,7 +26,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _userCtrl.dispose();
-    _emailCtrl.dispose();
     super.dispose();
   }
 
@@ -37,7 +35,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       final group = await GroupService.createGroup(
         name: _nameCtrl.text,
         username: _userCtrl.text,
-        email: _emailCtrl.text,
       );
       if (mounted) setState(() => _created = group);
     } on GroupException catch (e) {
@@ -83,14 +80,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           hint: 'Ton pseudo',
           icon: Icons.person_outline,
           capitalization: TextCapitalization.words,
-        ),
-        const SizedBox(height: 16),
-        AppTextField(
-          controller: _emailCtrl,
-          label: 'Email',
-          hint: 'toi@exemple.com',
-          icon: Icons.alternate_email,
-          keyboardType: TextInputType.emailAddress,
         ),
         if (_error != null) ...[
           const SizedBox(height: 16),

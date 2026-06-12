@@ -3,6 +3,7 @@ class GroupPhotoEntry {
   final String personName;
   final String uploaderUsername;
   final String uploaderEmail;
+  final String uploaderUid;
   final String imageBase64;
   final DateTime timestamp;
 
@@ -11,6 +12,7 @@ class GroupPhotoEntry {
     required this.personName,
     required this.uploaderUsername,
     required this.uploaderEmail,
+    required this.uploaderUid,
     required this.imageBase64,
     required this.timestamp,
   });
@@ -21,6 +23,7 @@ class GroupPhotoEntry {
         personName: map['personName'] as String? ?? '',
         uploaderUsername: map['uploaderUsername'] as String? ?? '',
         uploaderEmail: map['uploaderEmail'] as String? ?? '',
+        uploaderUid: map['uploaderUid'] as String? ?? '',
         imageBase64: map['imageBase64'] as String? ?? '',
         timestamp:
             DateTime.tryParse(map['timestamp'] as String? ?? '') ?? DateTime.now(),
@@ -30,6 +33,7 @@ class GroupPhotoEntry {
         'personName': personName,
         'uploaderUsername': uploaderUsername,
         'uploaderEmail': uploaderEmail,
+        'uploaderUid': uploaderUid,
         'imageBase64': imageBase64,
         'timestamp': timestamp.toIso8601String(),
       };
