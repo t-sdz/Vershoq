@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/group_service.dart';
 import '../widgets/form_widgets.dart';
+import 'group_home_screen.dart';
 
 class JoinGroupScreen extends StatefulWidget {
   const JoinGroupScreen({super.key});
@@ -38,10 +39,10 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
         email: _emailCtrl.text,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Tu as rejoint « ${group.name} » !')),
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const GroupHomeScreen()),
+          (route) => route.isFirst,
         );
-        Navigator.of(context).pop();
       }
     } on GroupException catch (e) {
       if (mounted) setState(() => _error = e.message);

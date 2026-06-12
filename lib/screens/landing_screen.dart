@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/group.dart';
 import '../services/group_service.dart';
 import 'create_group_screen.dart';
-import 'groups_screen.dart';
+import 'group_home_screen.dart';
 import 'join_group_screen.dart';
 
 class LandingScreen extends StatefulWidget {
@@ -81,7 +81,7 @@ class _LandingScreenState extends State<LandingScreen> {
 
   Widget _buildGroupBanner() {
     return GestureDetector(
-      onTap: () => _open(const GroupsScreen()),
+      onTap: () => _open(const GroupHomeScreen()),
       child: Container(
         width: double.infinity,
         margin: const EdgeInsets.only(bottom: 8),

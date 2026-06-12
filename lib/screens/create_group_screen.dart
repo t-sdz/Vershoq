@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../models/group.dart';
 import '../services/group_service.dart';
 import '../widgets/form_widgets.dart';
+import 'group_home_screen.dart';
 
 class CreateGroupScreen extends StatefulWidget {
   const CreateGroupScreen({super.key});
@@ -182,8 +183,12 @@ class _SuccessView extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Terminé'),
+              onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(
+                    builder: (_) => const GroupHomeScreen()),
+                (route) => route.isFirst,
+              ),
+              child: const Text('Accéder au groupe'),
             ),
           ),
         ],
