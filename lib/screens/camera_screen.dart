@@ -75,21 +75,31 @@ class _CameraScreenState extends State<CameraScreen>
   }
 
   Future<void> _startController(CameraDescription camera) async {
-    final controller = CameraController(
-      camera,
+    for (final preset in [
       ResolutionPreset.high,
-      enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.jpeg,
-    );
-    _controller = controller;
-    try {
-      await controller.initialize();
-      if (mounted) {
-        setState(() => _isInitialized = true);
-        _maybeStartCountdown();
+      ResolutionPreset.medium,
+      ResolutionPreset.low,
+    ]) {
+      final controller = CameraController(
+        camera,
+        preset,
+        enableAudio: false,
+      );
+      _controller = controller;
+      try {
+        await controller.initialize();
+        if (mounted) {
+          setState(() => _isInitialized = true);
+          _maybeStartCountdown();
+        }
+        return;
+      } on CameraException {
+        await controller.dispose();
+        _controller = null;
       }
-    } on CameraException catch (e) {
-      setState(() => _errorMessage = 'Erreur caméra : ${e.description}');
+    }
+    if (mounted) {
+      setState(() => _errorMessage = 'Impossible d\'initialiser la caméra');
     }
   }
 
