@@ -13,11 +13,18 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   List<String> _names = [];
+
+  // Notifications
+  bool _timeLimitEnabled = true;
   int _startHour = 9;
   int _endHour = 21;
-  int _dailyCount = 3;
+  int _minCount = 2;
+  int _maxCount = 5;
+
+  // Countdown
   bool _countdownEnabled = false;
   int _countdownSeconds = 15;
+
   bool _loading = true;
 
   @override
@@ -32,9 +39,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) {
       setState(() {
         _names = names;
+        _timeLimitEnabled = prefs.getBool('notif_time_limit_enabled') ?? true;
         _startHour = prefs.getInt('notif_start_hour') ?? 9;
         _endHour = prefs.getInt('notif_end_hour') ?? 21;
-        _dailyCount = prefs.getInt('notif_daily_count') ?? 3;
+        _minCount = prefs.getInt('notif_min_count') ?? 2;
+        _maxCount = prefs.getInt('notif_max_count') ?? 5;
         _countdownEnabled = prefs.getBool('countdown_enabled') ?? false;
         _countdownSeconds = prefs.getInt('countdown_seconds') ?? 15;
         _loading = false;
@@ -44,9 +53,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _saveNotifSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('notif_time_limit_enabled', _timeLimitEnabled);
     await prefs.setInt('notif_start_hour', _startHour);
     await prefs.setInt('notif_end_hour', _endHour);
-    await prefs.setInt('notif_daily_count', _dailyCount);
+    await prefs.setInt('notif_min_count', _minCount);
+    await prefs.setInt('notif_max_count', _maxCount);
     await NotificationService.scheduleRandom();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -115,14 +126,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           _SectionTitle('Notifications'),
           const SizedBox(height: 8),
-          _NotifSettings(
-            startHour: _startHour,
-            endHour: _endHour,
-            dailyCount: _dailyCount,
-            onStartHourChanged: (v) => setState(() => _startHour = v),
-            onEndHourChanged: (v) => setState(() => _endHour = v),
-            onDailyCountChanged: (v) => setState(() => _dailyCount = v),
-          ),
+          _buildNotifCard(),
           const SizedBox(height: 12),
           FilledButton(
             onPressed: _saveNotifSettings,
@@ -131,62 +135,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 32),
           _SectionTitle('Compte à rebours'),
           const SizedBox(height: 8),
-          Card(
-            color: const Color(0xFF111111),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Column(
-                children: [
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Activer le compte à rebours',
-                        style: TextStyle(color: Colors.white)),
-                    subtitle: const Text(
-                      'Capture automatique à la fin du temps',
-                      style: TextStyle(color: Colors.white38, fontSize: 12),
-                    ),
-                    value: _countdownEnabled,
-                    activeColor: Colors.white,
-                    activeTrackColor: Colors.green,
-                    onChanged: (v) {
-                      setState(() => _countdownEnabled = v);
-                      _saveCountdownSettings();
-                    },
-                  ),
-                  if (_countdownEnabled)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        children: [
-                          const Text('Durée',
-                              style: TextStyle(color: Colors.white70)),
-                          Expanded(
-                            child: Slider(
-                              value: _countdownSeconds.toDouble().clamp(5, 60),
-                              min: 5,
-                              max: 60,
-                              divisions: 11,
-                              label: '$_countdownSeconds s',
-                              onChanged: (v) => setState(
-                                  () => _countdownSeconds = v.round()),
-                              onChangeEnd: (_) => _saveCountdownSettings(),
-                            ),
-                          ),
-                          SizedBox(
-                            width: 44,
-                            child: Text('${_countdownSeconds}s',
-                                textAlign: TextAlign.right,
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold)),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
+          _buildCountdownCard(),
           const SizedBox(height: 32),
           _SectionTitle('Liste des prénoms'),
           const SizedBox(height: 8),
@@ -211,6 +160,161 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
+
+  Widget _buildNotifCard() {
+    return Card(
+      color: const Color(0xFF111111),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Toggle heures
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Limiter les heures',
+                  style: TextStyle(color: Colors.white)),
+              subtitle: Text(
+                _timeLimitEnabled
+                    ? 'Entre ${_startHour}h00 et ${_endHour}h00'
+                    : 'À toute heure de la journée',
+                style: const TextStyle(color: Colors.white38, fontSize: 12),
+              ),
+              value: _timeLimitEnabled,
+              activeColor: Colors.white,
+              activeTrackColor: Colors.green,
+              onChanged: (v) => setState(() => _timeLimitEnabled = v),
+            ),
+
+            // Heures de début / fin (visibles seulement si toggle actif)
+            if (_timeLimitEnabled) ...[
+              const Divider(color: Colors.white12),
+              const SizedBox(height: 4),
+              _SliderRow(
+                label: 'Heure de début',
+                value: _startHour.toDouble(),
+                min: 0,
+                max: 12,
+                display: '${_startHour}h00',
+                onChanged: (v) {
+                  final h = v.round();
+                  setState(() {
+                    _startHour = h;
+                    if (_endHour <= _startHour) _endHour = _startHour + 1;
+                  });
+                },
+              ),
+              _SliderRow(
+                label: 'Heure de fin',
+                value: _endHour.toDouble(),
+                min: 13,
+                max: 23,
+                display: '${_endHour}h00',
+                onChanged: (v) {
+                  final h = v.round();
+                  setState(() {
+                    _endHour = h;
+                    if (_startHour >= _endHour) _startHour = _endHour - 1;
+                  });
+                },
+              ),
+            ],
+
+            const Divider(color: Colors.white12),
+            const SizedBox(height: 4),
+
+            // Min / Max par jour
+            const Text('Notifications par jour',
+                style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            _SliderRow(
+              label: 'Minimum',
+              value: _minCount.toDouble(),
+              min: 1,
+              max: 10,
+              display: '$_minCount',
+              onChanged: (v) {
+                final n = v.round();
+                setState(() {
+                  _minCount = n;
+                  if (_maxCount < _minCount) _maxCount = _minCount;
+                });
+              },
+            ),
+            _SliderRow(
+              label: 'Maximum',
+              value: _maxCount.toDouble(),
+              min: 1,
+              max: 20,
+              display: '$_maxCount',
+              onChanged: (v) {
+                final n = v.round();
+                setState(() {
+                  _maxCount = n;
+                  if (_minCount > _maxCount) _minCount = _maxCount;
+                });
+              },
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Entre $_minCount et $_maxCount notifications aléatoires par jour',
+                style:
+                    const TextStyle(color: Colors.white38, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCountdownCard() {
+    return Card(
+      color: const Color(0xFF111111),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Column(
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Activer le compte à rebours',
+                  style: TextStyle(color: Colors.white)),
+              subtitle: const Text(
+                'Capture automatique à la fin du temps',
+                style: TextStyle(color: Colors.white38, fontSize: 12),
+              ),
+              value: _countdownEnabled,
+              activeColor: Colors.white,
+              activeTrackColor: Colors.green,
+              onChanged: (v) {
+                setState(() => _countdownEnabled = v);
+                _saveCountdownSettings();
+              },
+            ),
+            if (_countdownEnabled)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _SliderRow(
+                  label: 'Durée',
+                  value: _countdownSeconds.toDouble().clamp(5, 60),
+                  min: 5,
+                  max: 60,
+                  display: '${_countdownSeconds}s',
+                  onChanged: (v) {
+                    setState(() => _countdownSeconds = v.round());
+                    _saveCountdownSettings();
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _SectionTitle extends StatelessWidget {
@@ -226,63 +330,6 @@ class _SectionTitle extends StatelessWidget {
         fontWeight: FontWeight.bold,
         fontSize: 12,
         letterSpacing: 2,
-      ),
-    );
-  }
-}
-
-class _NotifSettings extends StatelessWidget {
-  final int startHour;
-  final int endHour;
-  final int dailyCount;
-  final ValueChanged<int> onStartHourChanged;
-  final ValueChanged<int> onEndHourChanged;
-  final ValueChanged<int> onDailyCountChanged;
-
-  const _NotifSettings({
-    required this.startHour,
-    required this.endHour,
-    required this.dailyCount,
-    required this.onStartHourChanged,
-    required this.onEndHourChanged,
-    required this.onDailyCountChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: const Color(0xFF1A1A2E),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _SliderRow(
-              label: 'Heure de début',
-              value: startHour.toDouble(),
-              min: 6,
-              max: 12,
-              onChanged: (v) => onStartHourChanged(v.round()),
-              display: '${startHour}h00',
-            ),
-            _SliderRow(
-              label: 'Heure de fin',
-              value: endHour.toDouble(),
-              min: 16,
-              max: 23,
-              onChanged: (v) => onEndHourChanged(v.round()),
-              display: '${endHour}h00',
-            ),
-            _SliderRow(
-              label: 'Notifications par jour',
-              value: dailyCount.toDouble(),
-              min: 1,
-              max: 10,
-              onChanged: (v) => onDailyCountChanged(v.round()),
-              display: '$dailyCount',
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -307,24 +354,28 @@ class _SliderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: const TextStyle(color: Colors.white70)),
-            Text(display,
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold)),
-          ],
+        SizedBox(
+          width: 100,
+          child: Text(label,
+              style: const TextStyle(color: Colors.white70, fontSize: 13)),
         ),
-        Slider(
-          value: value.clamp(min, max),
-          min: min,
-          max: max,
-          divisions: (max - min).round(),
-          onChanged: onChanged,
+        Expanded(
+          child: Slider(
+            value: value.clamp(min, max),
+            min: min,
+            max: max,
+            divisions: (max - min).round(),
+            onChanged: onChanged,
+          ),
+        ),
+        SizedBox(
+          width: 40,
+          child: Text(display,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.bold)),
         ),
       ],
     );

@@ -75,9 +75,11 @@ class NotificationService {
   /// Cancels all pending notifications and schedules fresh random ones.
   static Future<void> scheduleRandom() async {
     final prefs = await SharedPreferences.getInstance();
-    final startHour = prefs.getInt('notif_start_hour') ?? 9;
-    final endHour = prefs.getInt('notif_end_hour') ?? 21;
-    final dailyCount = prefs.getInt('notif_daily_count') ?? 3;
+    final timeLimitEnabled = prefs.getBool('notif_time_limit_enabled') ?? true;
+    final startHour = timeLimitEnabled ? (prefs.getInt('notif_start_hour') ?? 9) : 0;
+    final endHour = timeLimitEnabled ? (prefs.getInt('notif_end_hour') ?? 21) : 23;
+    final minCount = prefs.getInt('notif_min_count') ?? 2;
+    final maxCount = prefs.getInt('notif_max_count') ?? 5;
 
     await _plugin.cancelAll();
 
@@ -93,8 +95,12 @@ class NotificationService {
     // Schedule for the next 7 days
     for (int day = 0; day < 7; day++) {
       final base = now.add(Duration(days: day));
-      final totalMinutes = (endHour - startHour) * 60;
+      final totalMinutes = (endHour - startHour) * 60 + 59;
       if (totalMinutes <= 0) continue;
+
+      // Random count between min and max for this day
+      final range = (maxCount - minCount).abs();
+      final dailyCount = minCount + (range == 0 ? 0 : random.nextInt(range + 1));
 
       final minuteOffsets = List.generate(
         dailyCount,
