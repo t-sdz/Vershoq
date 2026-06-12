@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
+import 'group_service.dart';
 import 'names_service.dart';
 
 // Must be top-level for the background isolate
@@ -80,7 +81,9 @@ class NotificationService {
 
     await _plugin.cancelAll();
 
-    final names = await NamesService.getNames();
+    // Prefer group member names, fall back to manually saved names
+    List<String> names = await GroupService.getCachedMemberNames();
+    if (names.isEmpty) names = await NamesService.getNames();
     if (names.isEmpty) return;
 
     final now = DateTime.now();

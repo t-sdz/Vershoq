@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../models/group.dart';
 import '../models/photo_entry.dart';
 import '../services/group_service.dart';
-import '../services/names_service.dart';
 import '../services/notification_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/photo_card.dart';
@@ -55,6 +54,9 @@ class _GroupHomeScreenState extends State<GroupHomeScreen>
     if (group != null) {
       try {
         members = await GroupService.getMembers(group.id);
+        await GroupService.cacheMemberNames(
+            members.map((m) => m.username).toList());
+        await NotificationService.scheduleRandom();
       } catch (_) {}
     }
     final entries = await StorageService.getEntries();
@@ -71,10 +73,7 @@ class _GroupHomeScreenState extends State<GroupHomeScreen>
   }
 
   Future<void> _triggerShot() async {
-    // Use group member names if available, otherwise fall back to saved names
-    final names = _members.isNotEmpty
-        ? _members.map((m) => m.username).toList()
-        : await NamesService.getNames();
+    final names = _members.map((m) => m.username).toList();
     if (names.isEmpty) return;
     final name = names[Random().nextInt(names.length)];
 

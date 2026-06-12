@@ -173,6 +173,28 @@ class _CameraScreenState extends State<CameraScreen>
     );
   }
 
+  Widget _buildPreview() {
+    final previewSize = _controller!.value.previewSize;
+    if (previewSize == null) return CameraPreview(_controller!);
+
+    // previewSize is landscape (width > height); invert for portrait
+    final w = previewSize.height;
+    final h = previewSize.width;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SizedBox(
+          width: constraints.maxWidth,
+          height: constraints.maxHeight,
+          child: FittedBox(
+            fit: BoxFit.cover,
+            child: SizedBox(width: w, height: h, child: CameraPreview(_controller!)),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildBody() {
     if (_errorMessage != null) {
       return _ErrorView(message: _errorMessage!);
@@ -195,7 +217,7 @@ class _CameraScreenState extends State<CameraScreen>
           padding: EdgeInsets.only(top: topPad + 70, bottom: bottomPad + 150),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(28),
-            child: CameraPreview(_controller!),
+            child: _buildPreview(),
           ),
         ),
 

@@ -17,6 +17,7 @@ class GroupException implements Exception {
 class GroupService {
   static const _currentGroupKey = 'vershoq_current_group';
   static const _currentUserKey = 'vershoq_current_user';
+  static const _memberNamesKey = 'vershoq_member_names';
 
   // Caractères sans ambiguïté (pas de O/0, I/1)
   static const _codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -185,6 +186,17 @@ class GroupService {
   static Future<void> leaveGroup() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_currentGroupKey);
+    await prefs.remove(_memberNamesKey);
+  }
+
+  static Future<void> cacheMemberNames(List<String> names) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_memberNamesKey, names);
+  }
+
+  static Future<List<String>> getCachedMemberNames() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(_memberNamesKey) ?? [];
   }
 
   // ---------------------------------------------------------------------------
