@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "580924663030",
+    "project_id": "vershoq",
+    "storage_bucket": "vershoq.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:580924663030:android:b73a3be7bae831dcb9f8d7",
+        "android_client_info": {
+          "package_name": "com.example.vershoq"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBiJcbNOF1FKI0y_LnrYyRqya2ZAuAoPt8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
