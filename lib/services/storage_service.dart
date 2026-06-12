@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
@@ -37,18 +38,15 @@ class StorageService {
     );
 
     await _appendEntry(entry);
-
-    // Upload to shared group gallery in background (fire-and-forget)
-    _uploadToGroup(photoFile, personName).ignore();
-
     return entry;
   }
 
-  static Future<void> _uploadToGroup(File file, String personName) async {
+  /// Uploads the photo to the shared group gallery. Returns true on success.
+  static Future<bool> uploadToGroup(File file, String personName) async {
     try {
       final group = await GroupService.getCurrentGroup();
       final user = await GroupService.getCurrentUser();
-      if (group == null || user == null) return;
+      if (group == null || user == null) return false;
       await GroupPhotoService.uploadPhoto(
         file: file,
         groupId: group.id,
@@ -56,7 +54,11 @@ class StorageService {
         uploaderUsername: user.username,
         uploaderEmail: user.email,
       );
-    } catch (_) {}
+      return true;
+    } catch (e) {
+      debugPrint('[StorageService] Upload groupe échoué : $e');
+      return false;
+    }
   }
 
   static Future<void> _appendEntry(PhotoEntry entry) async {

@@ -181,10 +181,17 @@ class _CameraScreenState extends State<CameraScreen>
         personName: widget.personName,
       );
 
+      // Upload synchronously so the photo is in the group feed when we navigate back.
+      // The capture loading indicator stays visible during the upload.
+      final uploaded = await StorageService.uploadToGroup(
+        File(entry.localPath),
+        widget.personName,
+      );
+
       if (mounted) {
         await Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (_) => ResultScreen(entry: entry),
+            builder: (_) => ResultScreen(entry: entry, uploadedToGroup: uploaded),
           ),
         );
       }

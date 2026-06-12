@@ -7,8 +7,9 @@ import 'feed_screen.dart';
 
 class ResultScreen extends StatelessWidget {
   final PhotoEntry entry;
+  final bool uploadedToGroup;
 
-  const ResultScreen({super.key, required this.entry});
+  const ResultScreen({super.key, required this.entry, this.uploadedToGroup = false});
 
   @override
   Widget build(BuildContext context) {
@@ -48,10 +49,12 @@ class ResultScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '✓ Photo enregistrée',
+                Text(
+                  uploadedToGroup ? '✓ Envoyée au groupe' : '✓ Photo enregistrée',
                   style: TextStyle(
-                    color: Color(0xFF4CAF50),
+                    color: uploadedToGroup
+                        ? const Color(0xFF4CAF50)
+                        : const Color(0xFFFF8A3D),
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 1,
