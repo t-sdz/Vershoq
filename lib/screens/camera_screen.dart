@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image/image.dart' as img;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -148,6 +149,18 @@ class _CameraScreenState extends State<CameraScreen>
     super.dispose();
   }
 
+  Future<File> _maybeFlip(File file) async {
+    final isFront = _cameras.isNotEmpty &&
+        _cameras[_cameraIndex].lensDirection == CameraLensDirection.front;
+    if (!isFront) return file;
+    final bytes = await file.readAsBytes();
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return file;
+    final flipped = img.flipHorizontal(decoded);
+    await file.writeAsBytes(img.encodeJpg(flipped, quality: 90));
+    return file;
+  }
+
   Future<void> _takePhoto() async {
     final controller = _controller;
     if (controller == null ||
@@ -162,8 +175,9 @@ class _CameraScreenState extends State<CameraScreen>
 
     try {
       final xFile = await controller.takePicture();
+      final photoFile = await _maybeFlip(File(xFile.path));
       final entry = await StorageService.savePhoto(
-        photoFile: File(xFile.path),
+        photoFile: photoFile,
         personName: widget.personName,
       );
 

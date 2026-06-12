@@ -37,6 +37,7 @@ dependencies:
 
   # Image
   flutter_image_compress: ^2.3.0
+  image: ^4.2.0
   gal: ^1.2.0
 
   # UI
