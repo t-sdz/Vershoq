@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/storage_service.dart';
@@ -49,6 +50,14 @@ class _CameraScreenState extends State<CameraScreen>
 
   Future<void> _initCamera() async {
     try {
+      // Demande explicite de la permission caméra (requise sur MIUI/Xiaomi)
+      final status = await Permission.camera.request();
+      if (!status.isGranted) {
+        setState(() => _errorMessage =
+            'Permission caméra refusée.\nActive-la dans les paramètres de l\'app.');
+        return;
+      }
+
       _cameras = await availableCameras();
       if (_cameras.isEmpty) {
         setState(() => _errorMessage = 'Aucune caméra disponible');
