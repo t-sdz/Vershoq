@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../models/photo_entry.dart';
-import 'home_screen.dart';
+import 'group_home_screen.dart';
 
 class ResultScreen extends StatelessWidget {
   final PhotoEntry entry;
@@ -82,7 +82,7 @@ class ResultScreen extends StatelessWidget {
                     onPressed: () {
                       Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(
-                          builder: (_) => const HomeScreen(),
+                          builder: (_) => const GroupHomeScreen(),
                         ),
                         (_) => false,
                       );

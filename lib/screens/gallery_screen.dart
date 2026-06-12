@@ -1,8 +1,14 @@
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:gal/gal.dart';
+import 'package:http/http.dart' as http;
 
+import '../models/group_photo_entry.dart';
 import '../models/photo_entry.dart';
+import '../services/group_photo_service.dart';
+import '../services/group_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/photo_card.dart';
 
@@ -14,7 +20,9 @@ class GalleryScreen extends StatefulWidget {
 }
 
 class _GalleryScreenState extends State<GalleryScreen> {
-  List<PhotoEntry> _entries = [];
+  String? _groupId;
+  String? _userEmail;
+  List<PhotoEntry> _localEntries = [];
   bool _loading = true;
 
   @override
@@ -24,72 +32,111 @@ class _GalleryScreenState extends State<GalleryScreen> {
   }
 
   Future<void> _load() async {
-    final entries = await StorageService.getEntries();
-    if (mounted) setState(() {
-      _entries = entries;
-      _loading = false;
-    });
-  }
-
-  Future<void> _delete(PhotoEntry entry) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Supprimer ?'),
-        content: Text(
-            'Supprimer la photo de ${entry.personName} du ${_shortDate(entry.timestamp)} ?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Annuler')),
-          TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child:
-                  const Text('Supprimer', style: TextStyle(color: Colors.red))),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      await StorageService.deleteEntry(entry.id);
-      await _load();
+    final group = await GroupService.getCurrentGroup();
+    final user = await GroupService.getCurrentUser();
+    List<PhotoEntry> local = [];
+    if (group == null) local = await StorageService.getEntries();
+    if (mounted) {
+      setState(() {
+        _groupId = group?.id;
+        _userEmail = user?.email;
+        _localEntries = local;
+        _loading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Galerie')),
+      appBar: AppBar(
+        title: Text(_groupId != null ? 'Galerie du groupe' : 'Ma galerie'),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _entries.isEmpty
-              ? _emptyState()
-              : GridView.builder(
-                  padding: const EdgeInsets.all(12),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                  ),
-                  itemCount: _entries.length,
-                  itemBuilder: (_, i) {
-                    final entry = _entries[i];
-                    return PhotoCard(
-                      entry: entry,
-                      onTap: () => _showDetail(entry),
-                    );
-                  },
-                ),
+          : _groupId != null
+              ? _buildGroupGallery()
+              : _buildLocalGallery(),
     );
   }
 
-  void _showDetail(PhotoEntry entry) {
+  // ── Group gallery (Firestore stream) ────────────────────────────────────────
+
+  Widget _buildGroupGallery() {
+    return StreamBuilder<List<GroupPhotoEntry>>(
+      stream: GroupPhotoService.streamGroupPhotos(_groupId!),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final photos = snap.data ?? [];
+        if (photos.isEmpty) return _emptyState();
+
+        return GridView.builder(
+          padding: const EdgeInsets.all(12),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+          ),
+          itemCount: photos.length,
+          itemBuilder: (_, i) => _GroupPhotoCard(
+            photo: photos[i],
+            onTap: () => _showGroupDetail(photos[i]),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showGroupDetail(GroupPhotoEntry photo) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => _DetailScreen(entry: entry, onDelete: _delete),
+        builder: (_) => _GroupDetailScreen(
+          photo: photo,
+          userEmail: _userEmail,
+          groupId: _groupId!,
+        ),
       ),
     );
+  }
+
+  // ── Local gallery (offline / no group) ──────────────────────────────────────
+
+  Widget _buildLocalGallery() {
+    if (_localEntries.isEmpty) return _emptyState();
+    return GridView.builder(
+      padding: const EdgeInsets.all(12),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+      ),
+      itemCount: _localEntries.length,
+      itemBuilder: (_, i) {
+        final entry = _localEntries[i];
+        return PhotoCard(
+          entry: entry,
+          onTap: () => _showLocalDetail(entry),
+        );
+      },
+    );
+  }
+
+  void _showLocalDetail(PhotoEntry entry) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _LocalDetailScreen(
+          entry: entry,
+          onDelete: _deleteLocal,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteLocal(PhotoEntry entry) async {
+    await StorageService.deleteEntry(entry.id);
+    await _load();
   }
 
   Widget _emptyState() {
@@ -108,17 +155,231 @@ class _GalleryScreenState extends State<GalleryScreen> {
       ),
     );
   }
+}
 
-  String _shortDate(DateTime dt) {
-    return '${dt.day}/${dt.month}/${dt.year}';
+// ── Group photo card ─────────────────────────────────────────────────────────
+
+class _GroupPhotoCard extends StatelessWidget {
+  final GroupPhotoEntry photo;
+  final VoidCallback onTap;
+
+  const _GroupPhotoCard({required this.photo, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CachedNetworkImage(
+              imageUrl: photo.remoteUrl,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => Container(
+                color: const Color(0xFF111111),
+                child: const Center(
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white24),
+                ),
+              ),
+              errorWidget: (_, __, ___) => Container(
+                color: const Color(0xFF111111),
+                child: const Icon(Icons.broken_image_outlined,
+                    color: Colors.white24),
+              ),
+            ),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [Colors.black87, Colors.transparent],
+                  ),
+                ),
+                child: Text(
+                  photo.personName,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
-class _DetailScreen extends StatelessWidget {
+// ── Group detail screen ───────────────────────────────────────────────────────
+
+class _GroupDetailScreen extends StatelessWidget {
+  final GroupPhotoEntry photo;
+  final String? userEmail;
+  final String groupId;
+
+  const _GroupDetailScreen({
+    required this.photo,
+    required this.userEmail,
+    required this.groupId,
+  });
+
+  Future<void> _download(BuildContext context) async {
+    try {
+      final response = await http.get(Uri.parse(photo.remoteUrl));
+      await Gal.putImageBytes(response.bodyBytes);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Photo sauvegardée dans la galerie !')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur : $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _delete(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF111111),
+        title:
+            const Text('Supprimer ?', style: TextStyle(color: Colors.white)),
+        content: const Text('Cette photo sera supprimée pour tout le groupe.',
+            style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler',
+                style: TextStyle(color: Colors.white38)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Supprimer',
+                style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await GroupPhotoService.deletePhoto(groupId, photo.id);
+      if (context.mounted) Navigator.pop(context);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isUploader = photo.uploaderEmail == userEmail;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.download_outlined, color: Colors.white),
+            tooltip: 'Sauvegarder',
+            onPressed: () => _download(context),
+          ),
+          if (isUploader)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.white70),
+              onPressed: () => _delete(context),
+            ),
+        ],
+      ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          InteractiveViewer(
+            child: CachedNetworkImage(
+              imageUrl: photo.remoteUrl,
+              fit: BoxFit.contain,
+              placeholder: (_, __) => const Center(
+                  child: CircularProgressIndicator(color: Colors.white)),
+              errorWidget: (_, __, ___) =>
+                  const Icon(Icons.broken_image_outlined, color: Colors.white24),
+            ),
+          ),
+          Positioned(
+            bottom: 40,
+            left: 24,
+            right: 24,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  photo.personName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'par ${photo.uploaderUsername}',
+                  style: const TextStyle(color: Colors.white54, fontSize: 14),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _formatDate(photo.timestamp),
+                  style: const TextStyle(color: Colors.white38, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '${dt.day}/${dt.month}/${dt.year} à $h:$m';
+  }
+}
+
+// ── Local detail screen (no group) ───────────────────────────────────────────
+
+class _LocalDetailScreen extends StatelessWidget {
   final PhotoEntry entry;
   final Future<void> Function(PhotoEntry) onDelete;
 
-  const _DetailScreen({required this.entry, required this.onDelete});
+  const _LocalDetailScreen({required this.entry, required this.onDelete});
+
+  Future<void> _download(BuildContext context) async {
+    try {
+      await Gal.putImage(entry.localPath);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Photo sauvegardée dans la galerie !')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur : $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -128,6 +389,11 @@ class _DetailScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.download_outlined, color: Colors.white),
+            tooltip: 'Sauvegarder',
+            onPressed: () => _download(context),
+          ),
           IconButton(
             icon: const Icon(Icons.delete_outline, color: Colors.white70),
             onPressed: () async {
@@ -141,10 +407,7 @@ class _DetailScreen extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           InteractiveViewer(
-            child: Image.file(
-              File(entry.localPath),
-              fit: BoxFit.contain,
-            ),
+            child: Image.file(File(entry.localPath), fit: BoxFit.contain),
           ),
           Positioned(
             bottom: 40,

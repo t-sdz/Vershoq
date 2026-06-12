@@ -17,6 +17,14 @@ service cloud.firestore {
         allow update: if false;
         allow delete: if true;
       }
+
+      match /photos/{photoId} {
+        allow read: if true;
+        allow create: if request.resource.data.remoteUrl is string
+                      && request.resource.data.personName is string;
+        allow update: if false;
+        allow delete: if true;
+      }
     }
   }
 }

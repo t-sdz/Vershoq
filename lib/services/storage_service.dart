@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/photo_entry.dart';
+import 'group_photo_service.dart';
+import 'group_service.dart';
 
 class StorageService {
   static const _entriesKey = 'vershoq_photo_entries';
@@ -35,7 +37,26 @@ class StorageService {
     );
 
     await _appendEntry(entry);
+
+    // Upload to shared group gallery in background (fire-and-forget)
+    _uploadToGroup(photoFile, personName).ignore();
+
     return entry;
+  }
+
+  static Future<void> _uploadToGroup(File file, String personName) async {
+    try {
+      final group = await GroupService.getCurrentGroup();
+      final user = await GroupService.getCurrentUser();
+      if (group == null || user == null) return;
+      await GroupPhotoService.uploadPhoto(
+        file: file,
+        groupId: group.id,
+        personName: personName,
+        uploaderUsername: user.username,
+        uploaderEmail: user.email,
+      );
+    } catch (_) {}
   }
 
   static Future<void> _appendEntry(PhotoEntry entry) async {
