@@ -66,50 +66,76 @@ class VershoqApp extends StatelessWidget {
   }
 
   ThemeData _buildTheme() {
-    // BeReal-style: pur noir, blanc, typographie franche
+    const warmDark = Color(0xFF3D1A08);
     return ThemeData(
       useMaterial3: true,
-      colorScheme: const ColorScheme.dark(
-        primary: Colors.white,
-        onPrimary: Colors.black,
-        secondary: Colors.white,
-        surface: Color(0xFF111111),
-        onSurface: Colors.white,
+      colorScheme: const ColorScheme.light(
+        primary: Color(0xFFFF8A3D),
+        onPrimary: Colors.white,
+        secondary: Color(0xFFFF6B6B),
+        onSecondary: Colors.white,
+        surface: Color(0xFFFFF1D6),
+        onSurface: warmDark,
       ),
-      scaffoldBackgroundColor: Colors.black,
+      scaffoldBackgroundColor: const Color(0xFFFFF1D6),
       appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
+        foregroundColor: warmDark,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: false,
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
+          backgroundColor: const Color(0xFFFF8A3D),
+          foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(30),
           ),
           padding: const EdgeInsets.symmetric(vertical: 16),
-          textStyle: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
       ),
       sliderTheme: const SliderThemeData(
-        activeTrackColor: Colors.white,
-        thumbColor: Colors.white,
-        inactiveTrackColor: Colors.white24,
+        activeTrackColor: Color(0xFFFF8A3D),
+        thumbColor: Color(0xFFFF8A3D),
+        inactiveTrackColor: Color(0xFFFFD9C2),
+        valueIndicatorColor: Color(0xFFFF8A3D),
       ),
+      switchTheme: SwitchThemeData(
+        trackColor: WidgetStateProperty.resolveWith((s) =>
+            s.contains(WidgetState.selected)
+                ? const Color(0xFFFF8A3D)
+                : const Color(0xFFFFD9C2)),
+        thumbColor: WidgetStateProperty.all(Colors.white),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white,
+        hintStyle: TextStyle(color: const Color(0xFF9A6B50).withOpacity(0.5)),
+        prefixIconColor: const Color(0xFFFF8A3D),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFFFD9C2)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFFFD9C2)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFFF8A3D), width: 2),
+        ),
+      ),
+      cardColor: Colors.white,
       textTheme: const TextTheme(
         displayLarge: TextStyle(
-          fontWeight: FontWeight.w900,
-          color: Colors.white,
-          letterSpacing: -1.5,
-        ),
-        titleLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-        bodyMedium: TextStyle(color: Colors.white70),
+            fontWeight: FontWeight.w900,
+            color: warmDark,
+            letterSpacing: -1.5),
+        titleLarge:
+            TextStyle(color: warmDark, fontWeight: FontWeight.w700),
+        bodyMedium: TextStyle(color: warmDark),
       ),
     );
   }

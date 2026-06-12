@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../models/group.dart';
 import '../services/group_service.dart';
+import '../theme/v_theme.dart';
 import '../widgets/form_widgets.dart';
 import 'group_home_screen.dart';
 
@@ -14,8 +15,8 @@ class CreateGroupScreen extends StatefulWidget {
 }
 
 class _CreateGroupScreenState extends State<CreateGroupScreen> {
-  final _nameCtrl = TextEditingController();
-  final _userCtrl = TextEditingController();
+  final _nameCtrl  = TextEditingController();
+  final _userCtrl  = TextEditingController();
   final _emailCtrl = TextEditingController();
 
   bool _submitting = false;
@@ -31,10 +32,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   }
 
   Future<void> _submit() async {
-    setState(() {
-      _submitting = true;
-      _error = null;
-    });
+    setState(() { _submitting = true; _error = null; });
     try {
       final group = await GroupService.createGroup(
         name: _nameCtrl.text,
@@ -55,9 +53,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Créer un groupe')),
-      body: _created != null
-          ? _SuccessView(group: _created!)
-          : _buildForm(),
+      body: _created != null ? _SuccessView(group: _created!) : _buildForm(),
     );
   }
 
@@ -67,16 +63,11 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       children: [
         const Text('🎉', style: TextStyle(fontSize: 48)),
         const SizedBox(height: 12),
-        const Text(
-          'Nouveau groupe',
-          style: TextStyle(
-              color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900),
-        ),
+        const Text('Nouveau groupe',
+            style: TextStyle(color: VTheme.warmDark, fontSize: 24, fontWeight: FontWeight.w900)),
         const SizedBox(height: 4),
-        const Text(
-          'Un code sera généré automatiquement pour inviter tes amis.',
-          style: TextStyle(color: Colors.white54, fontSize: 14),
-        ),
+        const Text('Un code sera généré automatiquement pour inviter tes amis.',
+            style: TextStyle(color: VTheme.warmMuted, fontSize: 14)),
         const SizedBox(height: 28),
         AppTextField(
           controller: _nameCtrl,
@@ -106,16 +97,11 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           ErrorBanner(message: _error!),
         ],
         const SizedBox(height: 28),
-        FilledButton(
+        GradientButton(
+          label: 'Créer le groupe',
+          gradient: VTheme.solarGradient,
+          shadows: VTheme.glowSolar,
           onPressed: _submitting ? null : _submit,
-          child: _submitting
-              ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.black),
-                )
-              : const Text('Créer le groupe'),
         ),
       ],
     );
@@ -133,16 +119,23 @@ class _SuccessView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text('✅', style: TextStyle(fontSize: 56)),
-          const SizedBox(height: 16),
-          Text(
-            group.name,
-            style: const TextStyle(
-                color: Colors.white, fontSize: 26, fontWeight: FontWeight.w900),
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              gradient: VTheme.solarGradient,
+              shape: BoxShape.circle,
+              boxShadow: VTheme.glowSolar,
+            ),
+            child: const Center(child: Text('✅', style: TextStyle(fontSize: 36))),
           ),
+          const SizedBox(height: 20),
+          Text(group.name,
+              style: const TextStyle(
+                  color: VTheme.warmDark, fontSize: 26, fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
           const Text('Groupe créé ! Partage ce code :',
-              style: TextStyle(color: Colors.white54)),
+              style: TextStyle(color: VTheme.warmMuted)),
           const SizedBox(height: 24),
           GestureDetector(
             onTap: () {
@@ -152,43 +145,41 @@ class _SuccessView extends StatelessWidget {
               );
             },
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
+                gradient: VTheme.solarGradient,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: VTheme.glowSolar,
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    group.code,
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontSize: 36,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 8,
-                    ),
-                  ),
+                  Text(group.code,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 36,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 8)),
                   const SizedBox(width: 12),
-                  const Icon(Icons.copy, color: Colors.black54, size: 22),
+                  const Icon(Icons.copy, color: Colors.white70, size: 22),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           const Text('Touche le code pour le copier',
-              style: TextStyle(color: Colors.white38, fontSize: 12)),
+              style: TextStyle(color: VTheme.warmMuted, fontSize: 12)),
           const SizedBox(height: 40),
           SizedBox(
             width: double.infinity,
-            child: FilledButton(
+            child: GradientButton(
+              label: 'Accéder au groupe',
+              gradient: VTheme.sunriseGradient,
+              shadows: VTheme.glowSolar,
               onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(
-                    builder: (_) => const GroupHomeScreen()),
+                MaterialPageRoute(builder: (_) => const GroupHomeScreen()),
                 (route) => route.isFirst,
               ),
-              child: const Text('Accéder au groupe'),
             ),
           ),
         ],
@@ -196,4 +187,3 @@ class _SuccessView extends StatelessWidget {
     );
   }
 }
-

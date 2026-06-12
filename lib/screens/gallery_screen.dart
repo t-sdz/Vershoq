@@ -48,11 +48,12 @@ class _GalleryScreenState extends State<GalleryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFFFF1D6),
       appBar: AppBar(
         title: Text(_groupId != null ? 'Galerie du groupe' : 'Ma galerie'),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFFFF8A3D)))
           : _groupId != null
               ? _buildGroupGallery()
               : _buildLocalGallery(),
@@ -133,13 +134,13 @@ class _GalleryScreenState extends State<GalleryScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.photo_library_outlined, size: 64, color: Colors.white24),
+          Icon(Icons.photo_library_outlined, size: 64, color: Color(0xFFFFB86B)),
           SizedBox(height: 16),
           Text('Aucune photo encore',
-              style: TextStyle(color: Colors.white38, fontSize: 16)),
+              style: TextStyle(color: Color(0xFF9A6B50), fontSize: 16)),
           SizedBox(height: 8),
           Text('Attends une notification !',
-              style: TextStyle(color: Colors.white24, fontSize: 13)),
+              style: TextStyle(color: Color(0xFFFFB86B), fontSize: 13)),
         ],
       ),
     );

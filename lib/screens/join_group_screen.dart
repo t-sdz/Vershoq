@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/group_service.dart';
+import '../theme/v_theme.dart';
 import '../widgets/form_widgets.dart';
 import 'group_home_screen.dart';
 
@@ -12,9 +13,9 @@ class JoinGroupScreen extends StatefulWidget {
 }
 
 class _JoinGroupScreenState extends State<JoinGroupScreen> {
-  final _userCtrl = TextEditingController();
+  final _userCtrl  = TextEditingController();
   final _emailCtrl = TextEditingController();
-  final _codeCtrl = TextEditingController();
+  final _codeCtrl  = TextEditingController();
 
   bool _submitting = false;
   String? _error;
@@ -28,12 +29,9 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
   }
 
   Future<void> _submit() async {
-    setState(() {
-      _submitting = true;
-      _error = null;
-    });
+    setState(() { _submitting = true; _error = null; });
     try {
-      final group = await GroupService.joinGroup(
+      await GroupService.joinGroup(
         code: _codeCtrl.text,
         username: _userCtrl.text,
         email: _emailCtrl.text,
@@ -62,18 +60,14 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
         children: [
           const Text('🔑', style: TextStyle(fontSize: 48)),
           const SizedBox(height: 12),
-          const Text(
-            'Rejoindre',
-            style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.w900),
-          ),
+          const Text('Rejoindre',
+              style: TextStyle(
+                  color: VTheme.warmDark,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900)),
           const SizedBox(height: 4),
-          const Text(
-            'Entre le code que ton ami t\'a partagé.',
-            style: TextStyle(color: Colors.white54, fontSize: 14),
-          ),
+          const Text('Entre le code que ton ami t\'a partagé.',
+              style: TextStyle(color: VTheme.warmMuted, fontSize: 14)),
           const SizedBox(height: 28),
           AppTextField(
             controller: _userCtrl,
@@ -103,16 +97,16 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
             ErrorBanner(message: _error!),
           ],
           const SizedBox(height: 28),
-          FilledButton(
+          GradientButton(
+            label: 'Rejoindre le groupe',
+            gradient: VTheme.skyGradient,
+            shadows: [
+              BoxShadow(
+                  color: VTheme.sky.withOpacity(0.4),
+                  blurRadius: 30,
+                  offset: const Offset(0, 12))
+            ],
             onPressed: _submitting ? null : _submit,
-            child: _submitting
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.black),
-                  )
-                : const Text('Rejoindre le groupe'),
           ),
         ],
       ),

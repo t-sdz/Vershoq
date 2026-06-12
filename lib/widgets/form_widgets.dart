@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// Champ texte stylé BeReal réutilisé par les formulaires de groupe.
+import '../theme/v_theme.dart';
+
 class AppTextField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
@@ -26,33 +27,18 @@ class AppTextField extends StatelessWidget {
       children: [
         Text(label,
             style: const TextStyle(
-                color: Colors.white70,
+                color: VTheme.warmDark,
                 fontSize: 13,
-                fontWeight: FontWeight.w600)),
+                fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
         TextField(
           controller: controller,
           keyboardType: keyboardType,
           textCapitalization: capitalization,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: VTheme.warmDark),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(color: Colors.white24),
-            prefixIcon: Icon(icon, color: Colors.white38),
-            filled: true,
-            fillColor: const Color(0xFF111111),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Colors.white12),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Colors.white12),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Colors.white),
-            ),
+            prefixIcon: Icon(icon, color: VTheme.orange),
           ),
         ),
       ],
@@ -69,17 +55,17 @@ class ErrorBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.red.withOpacity(0.15),
+        color: const Color(0xFFFFEBEB),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.redAccent.withOpacity(0.4)),
+        border: Border.all(color: VTheme.coral.withOpacity(0.5)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, color: Colors.redAccent, size: 20),
+          const Icon(Icons.error_outline, color: VTheme.coral, size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Text(message,
-                style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
+                style: const TextStyle(color: VTheme.coral, fontSize: 13)),
           ),
         ],
       ),

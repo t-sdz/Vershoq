@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/group.dart';
 import '../services/group_service.dart';
+import '../theme/v_theme.dart';
 import 'create_group_screen.dart';
 import 'group_home_screen.dart';
 import 'join_group_screen.dart';
@@ -25,136 +26,206 @@ class _LandingScreenState extends State<LandingScreen> {
 
   Future<void> _checkGroup() async {
     final group = await GroupService.getCurrentGroup();
-    if (mounted) {
-      setState(() {
-        _group = group;
-        _loading = false;
-      });
-    }
+    if (mounted) setState(() { _group = group; _loading = false; });
   }
 
   Future<void> _open(Widget screen) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => screen),
-    );
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
     _checkGroup();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 28),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 72),
-                    const Text(
-                      'Vershoq',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 60,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -2,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Capturez les moments spontanés.',
-                      style: TextStyle(color: Colors.white38, fontSize: 16),
-                    ),
-                    const Spacer(),
-                    if (_group != null) _buildGroupBanner(),
-                    const SizedBox(height: 16),
-                    _buildButtons(),
-                    const SizedBox(height: 32),
-                  ],
-                ),
-              ),
-      ),
-    );
-  }
+    final top = MediaQuery.of(context).padding.top;
+    final bottom = MediaQuery.of(context).padding.bottom;
 
-  Widget _buildGroupBanner() {
-    return GestureDetector(
-      onTap: () => _open(const GroupHomeScreen()),
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: const Color(0xFF111111),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white12),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return Scaffold(
+      body: GradientBackground(
+        child: _loading
+            ? const Center(child: CircularProgressIndicator(color: VTheme.orange))
+            : Stack(
                 children: [
-                  const Text(
-                    'TON GROUPE',
-                    style: TextStyle(
-                      color: Colors.white38,
-                      fontSize: 11,
-                      letterSpacing: 2,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  // Decorative blurred circles
+                  Positioned(
+                    top: -40,
+                    right: -40,
+                    child: _Blob(gradient: VTheme.solarGradient, size: 200, opacity: 0.35),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _group!.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
+                  Positioned(
+                    bottom: 120,
+                    left: -60,
+                    child: _Blob(gradient: VTheme.skyGradient, size: 180, opacity: 0.25),
+                  ),
+
+                  SafeArea(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(28, top > 0 ? 0 : 16, 28, bottom > 0 ? 0 : 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 48),
+
+                          // Logo
+                          ShaderMask(
+                            shaderCallback: (b) => VTheme.solarGradient.createShader(b),
+                            child: const Text(
+                              'Vershoq',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 64,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -2.5,
+                                height: 1,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Capturez les moments spontanés\navec vos amis. ☀️',
+                            style: TextStyle(
+                              color: VTheme.warmMuted,
+                              fontSize: 16,
+                              height: 1.4,
+                            ),
+                          ),
+
+                          const Spacer(),
+
+                          // Group banner
+                          if (_group != null) ...[
+                            _GroupBanner(group: _group!, onTap: () => _open(const GroupHomeScreen())),
+                            const SizedBox(height: 16),
+                          ],
+
+                          // Créer
+                          SizedBox(
+                            width: double.infinity,
+                            child: GradientButton(
+                              label: 'Créer un groupe',
+                              gradient: VTheme.solarGradient,
+                              shadows: VTheme.glowSolar,
+                              onPressed: () => _open(const CreateGroupScreen()),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Rejoindre
+                          SizedBox(
+                            width: double.infinity,
+                            child: _OutlineButton(
+                              label: 'Rejoindre un groupe',
+                              onPressed: () => _open(const JoinGroupScreen()),
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
+      ),
+    );
+  }
+}
+
+class _GroupBanner extends StatelessWidget {
+  final Group group;
+  final VoidCallback onTap;
+  const _GroupBanner({required this.group, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: VTheme.cardShadow,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                gradient: VTheme.sunriseGradient,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.group_rounded, color: Colors.white, size: 22),
             ),
-            const Icon(Icons.chevron_right, color: Colors.white38),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('TON GROUPE',
+                      style: TextStyle(
+                          color: VTheme.warmMuted,
+                          fontSize: 11,
+                          letterSpacing: 1.5,
+                          fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 2),
+                  Text(group.name,
+                      style: const TextStyle(
+                          color: VTheme.warmDark,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: VTheme.warmMuted),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildButtons() {
-    return Column(
-      children: [
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton(
-            onPressed: () => _open(const CreateGroupScreen()),
-            child: const Text('Créer un groupe'),
-          ),
+class _OutlineButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onPressed;
+  const _OutlineButton({required this.label, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 56,
+      child: OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: VTheme.orange,
+          side: const BorderSide(color: VTheme.orange, width: 2),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+          textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              side: const BorderSide(color: Colors.white24),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-            ),
-            onPressed: () => _open(const JoinGroupScreen()),
-            child: const Text(
-              'Rejoindre un groupe',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-          ),
+        onPressed: onPressed,
+        child: Text(label),
+      ),
+    );
+  }
+}
+
+class _Blob extends StatelessWidget {
+  final Gradient gradient;
+  final double size;
+  final double opacity;
+  const _Blob({required this.gradient, required this.size, required this.opacity});
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: opacity,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          gradient: gradient,
+          shape: BoxShape.circle,
         ),
-      ],
+      ),
     );
   }
 }

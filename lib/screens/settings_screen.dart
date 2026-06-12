@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/names_service.dart';
 import '../services/notification_service.dart';
+import '../theme/v_theme.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -120,6 +121,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     return Scaffold(
+      backgroundColor: VTheme.bgWarm,
       appBar: AppBar(title: const Text('Paramètres')),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -128,9 +130,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           _buildNotifCard(),
           const SizedBox(height: 12),
-          FilledButton(
+          GradientButton(
+            label: 'Appliquer et replanifier',
+            gradient: VTheme.solarGradient,
+            shadows: VTheme.glowSolar,
             onPressed: _saveNotifSettings,
-            child: const Text('Appliquer et replanifier'),
           ),
           const SizedBox(height: 32),
           _SectionTitle('Compte à rebours'),
@@ -163,7 +167,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildNotifCard() {
     return Card(
-      color: const Color(0xFF111111),
+      color: Colors.white,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shadowColor: VTheme.orange.withOpacity(0.1),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
         child: Column(
@@ -173,22 +180,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Limiter les heures',
-                  style: TextStyle(color: Colors.white)),
+                  style: TextStyle(color: VTheme.warmDark)),
               subtitle: Text(
                 _timeLimitEnabled
                     ? 'Entre ${_startHour}h00 et ${_endHour}h00'
                     : 'À toute heure de la journée',
-                style: const TextStyle(color: Colors.white38, fontSize: 12),
+                style: const TextStyle(color: VTheme.warmMuted, fontSize: 12),
               ),
               value: _timeLimitEnabled,
-              activeColor: Colors.white,
-              activeTrackColor: Colors.green,
+              activeColor: VTheme.orange,
               onChanged: (v) => setState(() => _timeLimitEnabled = v),
             ),
 
             // Heures de début / fin (visibles seulement si toggle actif)
             if (_timeLimitEnabled) ...[
-              const Divider(color: Colors.white12),
+              const Divider(color: Color(0xFFFFE8D6)),
               const SizedBox(height: 4),
               _SliderRow(
                 label: 'Heure de début',
@@ -220,13 +226,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ],
 
-            const Divider(color: Colors.white12),
+            const Divider(color: Color(0xFFFFE8D6)),
             const SizedBox(height: 4),
 
             // Min / Max par jour
             const Text('Notifications par jour',
                 style: TextStyle(
-                    color: Colors.white70,
+                    color: VTheme.warmDark,
                     fontSize: 13,
                     fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
@@ -263,7 +269,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Text(
                 'Entre $_minCount et $_maxCount notifications aléatoires par jour',
                 style:
-                    const TextStyle(color: Colors.white38, fontSize: 12),
+                    const TextStyle(color: VTheme.warmMuted, fontSize: 12),
               ),
             ),
           ],
@@ -274,7 +280,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildCountdownCard() {
     return Card(
-      color: const Color(0xFF111111),
+      color: Colors.white,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         child: Column(
@@ -282,14 +290,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Activer le compte à rebours',
-                  style: TextStyle(color: Colors.white)),
+                  style: TextStyle(color: VTheme.warmDark)),
               subtitle: const Text(
                 'Capture automatique à la fin du temps',
-                style: TextStyle(color: Colors.white38, fontSize: 12),
+                style: TextStyle(color: VTheme.warmMuted, fontSize: 12),
               ),
               value: _countdownEnabled,
-              activeColor: Colors.white,
-              activeTrackColor: Colors.green,
+              activeColor: VTheme.orange,
               onChanged: (v) {
                 setState(() => _countdownEnabled = v);
                 _saveCountdownSettings();
@@ -325,10 +332,10 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text.toUpperCase(),
-      style: TextStyle(
-        color: Theme.of(context).colorScheme.primary,
+      style: const TextStyle(
+        color: VTheme.warmMuted,
         fontWeight: FontWeight.bold,
-        fontSize: 12,
+        fontSize: 11,
         letterSpacing: 2,
       ),
     );
@@ -359,7 +366,7 @@ class _SliderRow extends StatelessWidget {
         SizedBox(
           width: 100,
           child: Text(label,
-              style: const TextStyle(color: Colors.white70, fontSize: 13)),
+              style: const TextStyle(color: VTheme.warmDark, fontSize: 13)),
         ),
         Expanded(
           child: Slider(
@@ -375,7 +382,7 @@ class _SliderRow extends StatelessWidget {
           child: Text(display,
               textAlign: TextAlign.right,
               style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold)),
+                  color: VTheme.warmDark, fontWeight: FontWeight.bold)),
         ),
       ],
     );
