@@ -3,23 +3,19 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Groupes Vershoq
-    // NOTE : l'app n'utilise pas Firebase Auth pour l'instant.
-    // Ces règles autorisent la création/lecture de groupes et de membres.
-    // Pour durcir la sécurité, ajoute Firebase Auth puis restreins avec
-    // request.auth != null.
     match /groups/{groupId} {
       allow read: if true;
       allow create: if request.resource.data.code is string
                     && request.resource.data.name is string;
-      allow update: if true;   // memberCount, etc.
+      allow update: if true;
       allow delete: if false;
 
       match /members/{memberId} {
         allow read: if true;
         allow create: if request.resource.data.email is string
                       && request.resource.data.username is string;
-        allow update, delete: if false;
+        allow update: if false;
+        allow delete: if true;
       }
     }
   }
