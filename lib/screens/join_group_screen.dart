@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/group_service.dart';
 import '../theme/v_theme.dart';
 import '../widgets/form_widgets.dart';
-import 'group_home_screen.dart';
+import 'feed_screen.dart';
 
 class JoinGroupScreen extends StatefulWidget {
   const JoinGroupScreen({super.key});
@@ -38,7 +38,7 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
       );
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const GroupHomeScreen()),
+          MaterialPageRoute(builder: (_) => const FeedScreen()),
           (route) => route.isFirst,
         );
       }

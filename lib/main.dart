@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'firebase_options.dart';
 import 'screens/camera_screen.dart';
+import 'screens/feed_screen.dart';
 import 'screens/landing_screen.dart';
 import 'services/notification_service.dart';
 

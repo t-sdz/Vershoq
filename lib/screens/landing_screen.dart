@@ -4,7 +4,7 @@ import '../models/group.dart';
 import '../services/group_service.dart';
 import '../theme/v_theme.dart';
 import 'create_group_screen.dart';
-import 'group_home_screen.dart';
+import 'feed_screen.dart';
 import 'join_group_screen.dart';
 
 class LandingScreen extends StatefulWidget {
@@ -93,7 +93,7 @@ class _LandingScreenState extends State<LandingScreen> {
 
                           // Group banner
                           if (_group != null) ...[
-                            _GroupBanner(group: _group!, onTap: () => _open(const GroupHomeScreen())),
+                            _GroupBanner(group: _group!, onTap: () => _open(const FeedScreen())),
                             const SizedBox(height: 16),
                           ],
 
