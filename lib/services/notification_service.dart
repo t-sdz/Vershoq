@@ -72,6 +72,10 @@ class NotificationService {
     return null;
   }
 
+  static Future<void> cancelAll() async {
+    await _plugin.cancelAll();
+  }
+
   /// Cancels all pending notifications and schedules fresh random ones.
   static Future<void> scheduleRandom() async {
     final prefs = await SharedPreferences.getInstance();

@@ -53,12 +53,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _saveNotifSettings() async {
+    if (_startHour >= _endHour) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('L\'heure de début doit être avant l\'heure de fin.')),
+      );
+      return;
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('notif_time_limit_enabled', _timeLimitEnabled);
     await prefs.setInt('notif_start_hour', _startHour);
     await prefs.setInt('notif_end_hour', _endHour);
     await prefs.setInt('notif_min_count', _minCount);
     await prefs.setInt('notif_max_count', _maxCount);
+    await NotificationService.cancelAll();
     await NotificationService.scheduleRandom();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -200,27 +207,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 label: 'Heure de début',
                 value: _startHour.toDouble(),
                 min: 0,
-                max: 12,
+                max: 22,
                 display: '${_startHour}h00',
                 onChanged: (v) {
                   final h = v.round();
                   setState(() {
                     _startHour = h;
-                    if (_endHour <= _startHour) _endHour = _startHour + 1;
+                    if (_endHour <= _startHour) _endHour = (_startHour + 1).clamp(1, 23);
                   });
                 },
               ),
               _SliderRow(
                 label: 'Heure de fin',
                 value: _endHour.toDouble(),
-                min: 13,
+                min: 1,
                 max: 23,
                 display: '${_endHour}h00',
                 onChanged: (v) {
                   final h = v.round();
                   setState(() {
                     _endHour = h;
-                    if (_startHour >= _endHour) _startHour = _endHour - 1;
+                    if (_startHour >= _endHour) _startHour = (_endHour - 1).clamp(0, 22);
                   });
                 },
               ),

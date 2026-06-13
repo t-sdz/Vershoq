@@ -196,7 +196,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
           children: [
             Text('MEMBRES (${_members.length})',
                 style: const TextStyle(
-                    color: Colors.white38,
+                    color: Color(0xFF9A6B50),
                     fontSize: 11,
                     letterSpacing: 2,
                     fontWeight: FontWeight.bold)),
@@ -204,7 +204,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
               const SizedBox(width: 8),
               const Text('· ADMIN',
                   style: TextStyle(
-                      color: Colors.white24,
+                      color: Color(0xFFBB8860),
                       fontSize: 11,
                       letterSpacing: 2,
                       fontWeight: FontWeight.bold)),
@@ -217,29 +217,29 @@ class _GroupsScreenState extends State<GroupsScreen> {
             contentPadding: EdgeInsets.zero,
             leading: CircleAvatar(
               backgroundColor: m.email == group.createdByEmail
-                  ? Colors.white24
-                  : Colors.white12,
+                  ? const Color(0xFFFF8A3D)
+                  : const Color(0xFFFFD9C2),
               child: Text(
                 m.username.isNotEmpty ? m.username[0].toUpperCase() : '?',
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               ),
             ),
             title: Row(
               children: [
                 Text(m.username,
-                    style: const TextStyle(color: Colors.white)),
+                    style: const TextStyle(color: Color(0xFF3D1A08), fontWeight: FontWeight.w600)),
                 if (m.email == group.createdByEmail) ...[
                   const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.white12,
+                      color: const Color(0xFFFFE8D6),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: const Text('admin',
                         style: TextStyle(
-                            color: Colors.white54,
+                            color: Color(0xFFFF8A3D),
                             fontSize: 10,
                             fontWeight: FontWeight.bold)),
                   ),
@@ -247,12 +247,10 @@ class _GroupsScreenState extends State<GroupsScreen> {
               ],
             ),
             subtitle: Text(m.email,
-                style:
-                    const TextStyle(color: Colors.white38, fontSize: 12)),
+                style: const TextStyle(color: Color(0xFF9A6B50), fontSize: 12)),
             trailing: m.email == _user?.email
                 ? const Text('toi',
-                    style:
-                        TextStyle(color: Colors.white38, fontSize: 12))
+                    style: TextStyle(color: Color(0xFF9A6B50), fontSize: 12))
                 : isAdmin && m.email != group.createdByEmail
                     ? IconButton(
                         icon: const Icon(Icons.remove_circle_outline,
