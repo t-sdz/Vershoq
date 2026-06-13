@@ -387,7 +387,6 @@ class _Header extends StatelessWidget {
       ),
     );
   }
-  }
 }
 
 class _FlipButton extends StatelessWidget {
