@@ -368,34 +368,126 @@ class _GroupPhotoPage extends StatelessWidget {
           child: _Counter(current: index + 1, total: total),
         ),
 
-        // Bottom info
+        // Bottom info — BeReal style
         Positioned(
-          bottom: 110,
-          left: 20,
-          right: 80,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(photo.personName,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 36,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -1,
-                      shadows: [Shadow(blurRadius: 8, color: Colors.black54)])),
-              const SizedBox(height: 4),
-              Text('par @${photo.uploaderUsername}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 14)),
-              const SizedBox(height: 2),
-              Text(_fmt(photo.timestamp),
-                  style: const TextStyle(color: Colors.white38, fontSize: 12)),
-            ],
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [Colors.black87, Colors.black54, Colors.transparent],
+                stops: [0.0, 0.5, 1.0],
+              ),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 60, 20, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Uploader feat subject
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Avatar circle
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: VTheme.solarGradient,
+                        border: Border.all(color: Colors.white24, width: 1.5),
+                      ),
+                      child: Center(
+                        child: Text(
+                          photo.uploaderUsername.isNotEmpty
+                              ? photo.uploaderUsername[0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // "@Thomas feat Alice"
+                          RichText(
+                            text: TextSpan(
+                              style: const TextStyle(fontSize: 18, height: 1.2),
+                              children: [
+                                TextSpan(
+                                  text: '@${photo.uploaderUsername}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 18,
+                                  ),
+                                ),
+                                const TextSpan(
+                                  text: ' feat. ',
+                                  style: TextStyle(
+                                    color: Colors.white54,
+                                    fontWeight: FontWeight.normal,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: photo.personName,
+                                  style: const TextStyle(
+                                    color: VTheme.sunshine,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 18,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _fmt(photo.timestamp),
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Swipe up hint
+                if (index < total - 1)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.keyboard_arrow_up_rounded,
+                            color: Colors.white38, size: 18),
+                        SizedBox(width: 4),
+                        Text(
+                          'Swipe pour la suite',
+                          style: TextStyle(color: Colors.white38, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
 
         // Right actions
         Positioned(
-          bottom: 120,
+          bottom: 80,
           right: 16,
           child: Column(
             children: [
