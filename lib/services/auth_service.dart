@@ -28,8 +28,15 @@ class AuthService {
     );
   }
 
+  static Future<void> signInAnonymously() async {
+    if (_auth.currentUser == null) {
+      await _auth.signInAnonymously();
+    }
+  }
+
   static Future<void> signOut() async {
     await _auth.signOut();
+    await _auth.signInAnonymously();
   }
 
   static String friendlyError(String code) {

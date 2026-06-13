@@ -3,12 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'firebase_options.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
-import 'screens/auth_screen.dart';
 import 'screens/camera_screen.dart';
 import 'screens/feed_screen.dart';
 import 'screens/landing_screen.dart';
+import 'services/auth_service.dart';
 import 'services/notification_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -28,6 +27,7 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    await AuthService.signInAnonymously();
   } catch (e) {
     debugPrint('Firebase init échouée (groupes indisponibles) : $e');
   }
@@ -63,23 +63,9 @@ class VershoqApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
       theme: _buildTheme(),
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-          // Non connecté → écran d'auth
-          if (snap.data == null) return const AuthScreen();
-          // Connecté + notif de démarrage → caméra directe
-          if (initialPersonName != null && initialPersonName!.isNotEmpty) {
-            return CameraScreen(personName: initialPersonName!);
-          }
-          return const LandingScreen();
-        },
-      ),
+      home: initialPersonName != null && initialPersonName!.isNotEmpty
+          ? CameraScreen(personName: initialPersonName!)
+          : const LandingScreen(),
     );
   }
 

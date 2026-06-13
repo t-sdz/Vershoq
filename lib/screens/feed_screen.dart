@@ -14,7 +14,6 @@ import '../services/group_service.dart';
 import '../services/notification_service.dart';
 import '../services/storage_service.dart';
 import '../theme/v_theme.dart';
-import 'auth_screen.dart';
 import 'camera_screen.dart';
 import 'groups_screen.dart';
 import 'landing_screen.dart';
@@ -314,7 +313,12 @@ class _FeedScreenState extends State<FeedScreen> {
                 Navigator.pop(context);
                 await GroupService.leaveGroup();
                 await AuthService.signOut();
-                // authStateChanges dans main.dart redirige vers AuthScreen
+                if (context.mounted) {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const LandingScreen()),
+                    (_) => false,
+                  );
+                }
               },
             ),
             const SizedBox(height: 16),
