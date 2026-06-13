@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
@@ -13,7 +12,6 @@ import '../services/group_service.dart';
 import '../services/notification_service.dart';
 import '../services/storage_service.dart';
 import '../theme/v_theme.dart';
-import 'camera_screen.dart';
 import 'groups_screen.dart';
 import 'landing_screen.dart';
 import 'settings_screen.dart';
@@ -58,24 +56,6 @@ class _FeedScreenState extends State<FeedScreen> {
     }
   }
 
-  Future<void> _triggerShot() async {
-    final names = _members.isNotEmpty
-        ? _members.map((m) => m.username).toList()
-        : await GroupService.getCachedMemberNames();
-    if (names.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Aucun membre dans le groupe')),
-      );
-      return;
-    }
-    final name = names[Random().nextInt(names.length)];
-    if (!mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => CameraScreen(personName: name)),
-    );
-    _load();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -88,8 +68,6 @@ class _FeedScreenState extends State<FeedScreen> {
           : _group != null
               ? _GroupFeed(groupId: _group!.id, userEmail: _user?.email ?? '')
               : _LocalFeed(onReload: _load),
-      floatingActionButton: _buildFAB(),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 
@@ -114,26 +92,6 @@ class _FeedScreenState extends State<FeedScreen> {
         builder: (ctx) => IconButton(
           icon: const Icon(Icons.menu_rounded, color: Colors.white),
           onPressed: () => Scaffold.of(ctx).openDrawer(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFAB() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GestureDetector(
-        onTap: _triggerShot,
-        child: Container(
-          width: 70,
-          height: 70,
-          decoration: BoxDecoration(
-            gradient: VTheme.solarGradient,
-            shape: BoxShape.circle,
-            boxShadow: VTheme.glowSolar,
-          ),
-          child: const Icon(Icons.photo_camera_rounded,
-              color: Colors.white, size: 30),
         ),
       ),
     );
@@ -751,7 +709,7 @@ class _EmptyFeed extends StatelessWidget {
                     fontSize: 20,
                     fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            const Text('Appuie sur le bouton pour prendre\nle premier shot !',
+            const Text('Attends la notification Vershoq\npour capturer un moment !',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: VTheme.warmMuted, fontSize: 14)),
             const SizedBox(height: 120),

@@ -20,6 +20,8 @@ class NotificationService {
 
   static const _channelId = 'vershoq_shots';
   static const _channelName = 'Photos spontanées';
+  static const _captureActionId = 'vershoq_capture';
+  static const _iosCategoryId = 'vershoq_shot_category';
 
   static Future<void> init({
     required void Function(String personName) onTap,
@@ -36,14 +38,26 @@ class NotificationService {
 
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosSettings = DarwinInitializationSettings(
+    final iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
+      notificationCategories: [
+        DarwinNotificationCategory(
+          _iosCategoryId,
+          actions: [
+            DarwinNotificationAction.plain(
+              _captureActionId,
+              '📸 Capturer maintenant',
+              options: {DarwinNotificationActionOption.foreground},
+            ),
+          ],
+        ),
+      ],
     );
 
     await _plugin.initialize(
-      const InitializationSettings(
+      InitializationSettings(
         android: androidSettings,
         iOS: iosSettings,
       ),
@@ -136,10 +150,14 @@ class NotificationService {
   ) async {
     final tzTime = tz.TZDateTime.from(scheduledTime, tz.local);
 
+    // Compte à rebours façon BeReal : la notif affiche un chrono qui descend
+    // depuis 2 minutes, rendu nativement par Android.
+    final deadline = scheduledTime.add(const Duration(minutes: 2));
+
     await _plugin.zonedSchedule(
       id,
-      '📸 C\'est l\'heure !',
-      'Prends une photo de $personName maintenant !',
+      '📸 Prends vite ta photo avec $personName !',
+      'Tu as 2 minutes — dépêche-toi !',
       tzTime,
       NotificationDetails(
         android: AndroidNotificationDetails(
@@ -151,11 +169,26 @@ class NotificationService {
           priority: Priority.high,
           fullScreenIntent: true,
           ticker: 'Vershoq',
+          category: AndroidNotificationCategory.alarm,
+          // Chrono natif qui décompte jusqu'à la deadline (effet BeReal)
+          usesChronometer: true,
+          chronometerCountDown: true,
+          when: deadline.millisecondsSinceEpoch,
+          showWhen: true,
+          // Bouton interactif : ouvre directement la caméra
+          actions: <AndroidNotificationAction>[
+            AndroidNotificationAction(
+              _captureActionId,
+              '📸 Capturer maintenant',
+              showsUserInterface: true,
+            ),
+          ],
         ),
         iOS: const DarwinNotificationDetails(
           presentAlert: true,
           presentBadge: true,
           presentSound: true,
+          categoryIdentifier: _iosCategoryId,
         ),
       ),
       payload: personName,
