@@ -247,7 +247,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               label: 'Minimum',
               value: _minCount.toDouble(),
               min: 1,
-              max: 10,
+              max: 20,
               display: '$_minCount',
               onChanged: (v) {
                 final n = v.round();
