@@ -14,6 +14,7 @@ class JoinGroupScreen extends StatefulWidget {
 
 class _JoinGroupScreenState extends State<JoinGroupScreen> {
   final _userCtrl  = TextEditingController();
+  final _emailCtrl = TextEditingController();
   final _codeCtrl  = TextEditingController();
 
   bool _submitting = false;
@@ -22,6 +23,7 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
   @override
   void dispose() {
     _userCtrl.dispose();
+    _emailCtrl.dispose();
     _codeCtrl.dispose();
     super.dispose();
   }
@@ -32,6 +34,7 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
       await GroupService.joinGroup(
         code: _codeCtrl.text,
         username: _userCtrl.text,
+        email: _emailCtrl.text,
       );
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
@@ -72,6 +75,14 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
             hint: 'Ton pseudo',
             icon: Icons.person_outline,
             capitalization: TextCapitalization.words,
+          ),
+          const SizedBox(height: 16),
+          AppTextField(
+            controller: _emailCtrl,
+            label: 'Email',
+            hint: 'toi@exemple.com',
+            icon: Icons.alternate_email,
+            keyboardType: TextInputType.emailAddress,
           ),
           const SizedBox(height: 16),
           AppTextField(

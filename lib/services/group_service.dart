@@ -2,11 +2,11 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/group.dart';
 
+/// Exception métier renvoyée au formulaire pour affichage utilisateur.
 class GroupException implements Exception {
   final String message;
   GroupException(this.message);
@@ -15,51 +15,43 @@ class GroupException implements Exception {
 }
 
 class GroupService {
-  static const _currentGroupKey  = 'vershoq_current_group';
-  static const _currentUserKey   = 'vershoq_current_user';
-  static const _memberNamesKey   = 'vershoq_member_names';
+  static const _currentGroupKey = 'vershoq_current_group';
+  static const _currentUserKey = 'vershoq_current_user';
+  static const _memberNamesKey = 'vershoq_member_names';
 
+  // Caractères sans ambiguïté (pas de O/0, I/1)
   static const _codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
   static FirebaseFirestore get _db => FirebaseFirestore.instance;
   static CollectionReference<Map<String, dynamic>> get _groups =>
       _db.collection('groups');
 
-  // ── Auth helper ─────────────────────────────────────────────────────────────
-  static User _requireAuth() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) throw GroupException('Tu dois être connecté.');
-    return user;
-  }
-
-  // ── Création ─────────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // Création
+  // ---------------------------------------------------------------------------
   static Future<Group> createGroup({
     required String name,
     required String username,
+    required String email,
   }) async {
-    final authUser = _requireAuth();
-    _validateFields(name: name, username: username);
+    _validate(name: name, username: username, email: email);
 
     final code = await _generateUniqueCode();
-    final now  = DateTime.now();
-    final email = authUser.email ?? '';
-    final uid   = authUser.uid;
+    final now = DateTime.now();
 
     try {
       final docRef = await _groups.add({
         'name': name.trim(),
         'code': code,
-        'createdByEmail': email,
+        'createdByEmail': email.trim().toLowerCase(),
         'createdByUsername': username.trim(),
-        'createdByUid': uid,
         'createdAt': now.toIso8601String(),
         'memberCount': 1,
       });
 
       final member = GroupMember(
-        uid: uid,
         username: username.trim(),
-        email: email,
+        email: email.trim().toLowerCase(),
         joinedAt: now,
       );
       await docRef.collection('members').add(member.toMap());
@@ -68,9 +60,8 @@ class GroupService {
         id: docRef.id,
         name: name.trim(),
         code: code,
-        createdByEmail: email,
+        createdByEmail: email.trim().toLowerCase(),
         createdByUsername: username.trim(),
-        createdByUid: uid,
         createdAt: now,
       );
 
@@ -81,21 +72,19 @@ class GroupService {
     }
   }
 
-  // ── Rejoindre ────────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // Rejoindre
+  // ---------------------------------------------------------------------------
   static Future<Group> joinGroup({
     required String code,
     required String username,
+    required String email,
   }) async {
-    final authUser = _requireAuth();
-    _validateFields(username: username);
-
+    _validate(username: username, email: email);
     final normalizedCode = code.trim().toUpperCase();
     if (normalizedCode.length < 4) {
       throw GroupException('Code de groupe invalide.');
     }
-
-    final email = authUser.email ?? '';
-    final uid   = authUser.uid;
 
     try {
       final snap = await _groups
@@ -107,26 +96,26 @@ class GroupService {
         throw GroupException('Aucun groupe ne correspond à ce code.');
       }
 
-      final doc   = snap.docs.first;
+      final doc = snap.docs.first;
       final group = Group.fromMap(doc.id, doc.data());
-      final now   = DateTime.now();
+      final now = DateTime.now();
       final member = GroupMember(
-        uid: uid,
         username: username.trim(),
-        email: email,
+        email: email.trim().toLowerCase(),
         joinedAt: now,
       );
 
-      // Évite les doublons par UID
+      // Évite les doublons : un même email ne rejoint qu'une fois
       final existing = await doc.reference
           .collection('members')
-          .where('uid', isEqualTo: uid)
+          .where('email', isEqualTo: member.email)
           .limit(1)
           .get();
-
       if (existing.docs.isEmpty) {
         await doc.reference.collection('members').add(member.toMap());
-        await doc.reference.update({'memberCount': FieldValue.increment(1)});
+        await doc.reference.update({
+          'memberCount': FieldValue.increment(1),
+        });
       }
 
       await _saveLocal(group, member);
@@ -136,32 +125,20 @@ class GroupService {
     }
   }
 
-  // ── Membres ──────────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // Membres
+  // ---------------------------------------------------------------------------
   static Future<List<GroupMember>> getMembers(String groupId) async {
     final snap = await _groups.doc(groupId).collection('members').get();
     return snap.docs.map((d) => GroupMember.fromMap(d.data())).toList();
   }
 
-  static Future<void> removeMember(String groupId, String memberUid) async {
-    final authUser = _requireAuth();
-
-    // Vérifie que l'appelant est bien le créateur du groupe
-    final groupDoc = await _groups.doc(groupId).get();
-    final createdByUid = groupDoc.data()?['createdByUid'] as String? ?? '';
-    if (createdByUid != authUser.uid) {
-      throw GroupException('Seul l\'admin peut supprimer un membre.');
-    }
-
-    // Empêche l'admin de se supprimer lui-même
-    if (memberUid == authUser.uid) {
-      throw GroupException('Tu ne peux pas te supprimer toi-même.');
-    }
-
+  static Future<void> removeMember(String groupId, String memberEmail) async {
     try {
       final snap = await _groups
           .doc(groupId)
           .collection('members')
-          .where('uid', isEqualTo: memberUid)
+          .where('email', isEqualTo: memberEmail)
           .limit(1)
           .get();
       if (snap.docs.isNotEmpty) {
@@ -175,7 +152,9 @@ class GroupService {
     }
   }
 
-  // ── Persistance locale ───────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // Persistance locale du groupe courant
+  // ---------------------------------------------------------------------------
   static Future<void> _saveLocal(Group group, GroupMember member) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_currentGroupKey, jsonEncode(group.toJson()));
@@ -220,26 +199,36 @@ class GroupService {
     return prefs.getStringList(_memberNamesKey) ?? [];
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
   static Future<String> _generateUniqueCode() async {
     final random = Random.secure();
-    for (int i = 0; i < 10; i++) {
+    for (int attempt = 0; attempt < 10; attempt++) {
       final code = List.generate(
         6,
         (_) => _codeChars[random.nextInt(_codeChars.length)],
       ).join();
-      final exists = await _groups.where('code', isEqualTo: code).limit(1).get();
+
+      final exists =
+          await _groups.where('code', isEqualTo: code).limit(1).get();
       if (exists.docs.isEmpty) return code;
     }
+    // Repli extrêmement improbable
     throw GroupException('Impossible de générer un code unique, réessaie.');
   }
 
-  static void _validateFields({String? name, String? username}) {
+  static void _validate({String? name, String? username, String? email}) {
     if (name != null && name.trim().isEmpty) {
       throw GroupException('Le nom du groupe est requis.');
     }
     if (username != null && username.trim().isEmpty) {
       throw GroupException('Le nom d\'utilisateur est requis.');
+    }
+    if (email != null) {
+      final e = email.trim();
+      final valid = RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$').hasMatch(e);
+      if (!valid) throw GroupException('Adresse email invalide.');
     }
   }
 }

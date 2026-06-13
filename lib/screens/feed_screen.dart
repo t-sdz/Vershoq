@@ -8,7 +8,6 @@ import 'package:gal/gal.dart';
 import '../models/group.dart';
 import '../models/group_photo_entry.dart';
 import '../models/photo_entry.dart';
-import '../services/auth_service.dart';
 import '../services/group_photo_service.dart';
 import '../services/group_service.dart';
 import '../services/notification_service.dart';
@@ -87,7 +86,7 @@ class _FeedScreenState extends State<FeedScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: VTheme.orange))
           : _group != null
-              ? _GroupFeed(groupId: _group!.id, userUid: AuthService.currentUid ?? '')
+              ? _GroupFeed(groupId: _group!.id, userEmail: _user?.email ?? '')
               : _LocalFeed(onReload: _load),
       floatingActionButton: _buildFAB(),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
@@ -239,16 +238,6 @@ class _FeedScreenState extends State<FeedScreen> {
               const Divider(indent: 16, endIndent: 16, color: Color(0xFFFFE0C8)),
             ],
 
-            // Email connecté
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-              child: Text(
-                AuthService.currentEmail ?? '',
-                style: const TextStyle(color: VTheme.warmMuted, fontSize: 12),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-
             // Nav items
             _DrawerTile(
               icon: Icons.group_outlined,
@@ -304,23 +293,6 @@ class _FeedScreenState extends State<FeedScreen> {
                   }
                 },
               ),
-            // Déconnexion
-            _DrawerTile(
-              icon: Icons.logout_rounded,
-              label: 'Se déconnecter',
-              color: VTheme.warmMuted,
-              onTap: () async {
-                Navigator.pop(context);
-                await GroupService.leaveGroup();
-                await AuthService.signOut();
-                if (context.mounted) {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const LandingScreen()),
-                    (_) => false,
-                  );
-                }
-              },
-            ),
             const SizedBox(height: 16),
           ],
         ),
@@ -333,8 +305,8 @@ class _FeedScreenState extends State<FeedScreen> {
 
 class _GroupFeed extends StatelessWidget {
   final String groupId;
-  final String userUid;
-  const _GroupFeed({required this.groupId, required this.userUid});
+  final String userEmail;
+  const _GroupFeed({required this.groupId, required this.userEmail});
 
   @override
   Widget build(BuildContext context) {
@@ -354,7 +326,7 @@ class _GroupFeed extends StatelessWidget {
               itemCount: photos.length,
               itemBuilder: (_, i) => _GroupPhotoPage(
                 photo: photos[i],
-                isMe: photos[i].uploaderUid == userUid,
+                isMe: photos[i].uploaderEmail == userEmail,
                 groupId: groupId,
                 index: i,
                 total: photos.length,

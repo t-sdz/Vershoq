@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../models/group.dart';
-import '../services/auth_service.dart';
 import '../services/group_service.dart';
 import 'create_group_screen.dart';
 import 'join_group_screen.dart';
@@ -75,7 +74,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
       ),
     );
     if (confirmed == true && _current != null) {
-      await GroupService.removeMember(_current!.id, member.uid);
+      await GroupService.removeMember(_current!.id, member.email);
       await _load();
     }
   }
@@ -146,7 +145,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
 
   Widget _buildCurrentGroup() {
     final group = _current!;
-    final isAdmin = group.createdByUid == AuthService.currentUid;
+    final isAdmin = _user?.email == group.createdByEmail;
 
     return ListView(
       padding: const EdgeInsets.all(24),
@@ -254,7 +253,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                 ? const Text('toi',
                     style:
                         TextStyle(color: Colors.white38, fontSize: 12))
-                : isAdmin && m.uid != group.createdByUid
+                : isAdmin && m.email != group.createdByEmail
                     ? IconButton(
                         icon: const Icon(Icons.remove_circle_outline,
                             color: Colors.redAccent, size: 22),
