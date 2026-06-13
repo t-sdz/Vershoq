@@ -333,46 +333,60 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final urgent = remaining <= 3;
-    return Column(
-      children: [
-        Text(
-          personName,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 26,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -0.5,
-          ),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.black.withOpacity(0.65), Colors.transparent],
+          stops: const [0.0, 1.0],
         ),
-        const SizedBox(height: 2),
-        const Text(
-          'capture maintenant',
-          style: TextStyle(
-            color: Colors.white54,
-            fontSize: 12,
-            letterSpacing: 1,
-          ),
-        ),
-        if (countdownEnabled) ...[
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            decoration: BoxDecoration(
-              color: urgent ? Colors.red : Colors.white,
-              borderRadius: BorderRadius.circular(20),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: Column(
+        children: [
+          const Text(
+            'PRENDS VITE EN PHOTO',
+            style: TextStyle(
+              color: Colors.white60,
+              fontSize: 10,
+              letterSpacing: 2,
+              fontWeight: FontWeight.bold,
             ),
-            child: Text(
-              '⏱ $remaining s',
-              style: TextStyle(
-                color: urgent ? Colors.white : Colors.black,
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            personName,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 32,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.5,
+              shadows: [Shadow(blurRadius: 12, color: Colors.black87)],
+            ),
+          ),
+          if (countdownEnabled) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: urgent ? Colors.red : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '⏱ $remaining s',
+                style: TextStyle(
+                  color: urgent ? Colors.white : Colors.black,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
               ),
             ),
-          ),
+          ],
         ],
-      ],
+      ),
     );
+  }
   }
 }
 
