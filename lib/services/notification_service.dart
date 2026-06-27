@@ -167,9 +167,8 @@ class NotificationService {
               'Notifications pour capturer des moments spontanés',
           importance: Importance.max,
           priority: Priority.high,
-          fullScreenIntent: true,
           ticker: 'Vershoq',
-          category: AndroidNotificationCategory.alarm,
+          category: AndroidNotificationCategory.reminder,
           // Chrono natif qui décompte jusqu'à la deadline (effet BeReal)
           usesChronometer: true,
           chronometerCountDown: true,
@@ -192,7 +191,9 @@ class NotificationService {
         ),
       ),
       payload: personName,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      // Planification inexacte : ne nécessite aucune permission spéciale
+      // (compatible Play Store) et reste fidèle à l'esprit « spontané ».
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
     );
   }
 

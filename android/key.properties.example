@@ -1,0 +1,19 @@
+# Modèle de configuration de signature release pour Vershoq.
+#
+# 1. Génère ta clé (une seule fois, GARDE-LA précieusement) :
+#
+#    keytool -genkey -v -keystore ~/vershoq-release.jks \
+#      -keyalg RSA -keysize 2048 -validity 10000 -alias vershoq
+#
+# 2. Copie ce fichier en android/key.properties
+#    (le vrai fichier n'est PAS versionné — il contient tes mots de passe).
+#
+# 3. Remplace les valeurs ci-dessous par les tiennes.
+#
+# ⚠️ Si tu perds ce keystore, tu ne pourras plus jamais mettre à jour
+#    l'app sur le Play Store. Sauvegarde-le hors du projet.
+
+storePassword=motDePasseDuKeystore
+keyPassword=motDePasseDeLaCle
+keyAlias=vershoq
+storeFile=/chemin/absolu/vers/vershoq-release.jks
