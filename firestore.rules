@@ -1,29 +1,33 @@
 rules_version = '2';
 
-// Règles Vershoq.
+// Règles Vershoq (version sécurisée).
 //
-// L'app n'utilise pas (encore) d'authentification : l'identité est l'email
-// saisi par l'utilisateur. On ne peut donc pas restreindre par compte.
-// Ces règles limitent malgré tout les abus les plus coûteux :
-//   - on valide la forme des documents (schéma + types) ;
-//   - on plafonne la taille des photos pour protéger ton quota Firebase ;
-//   - on empêche les écritures malformées.
+// L'app connecte chaque appareil de façon ANONYME au démarrage
+// (FirebaseAuth.signInAnonymously, invisible pour l'utilisateur). Toutes les
+// opérations exigent donc `request.auth != null` : les données ne sont
+// accessibles que depuis l'app, pas depuis l'extérieur.
 //
-// ⚠️ Pour une vraie sécurité (empêcher un inconnu de lire/supprimer les
-// photos d'un groupe), il faut activer Firebase Authentication (l'option
-// "Anonyme" suffit, elle reste invisible pour l'utilisateur) puis remplacer
-// les `if true` par `if request.auth != null`.
+// ⚠️ PRÉREQUIS : activer le fournisseur « Anonyme » dans la console Firebase
+// (Authentication > Sign-in method > Anonymous > Activer). Sans ça, l'app ne
+// pourra ni lire ni écrire.
+//
+// On garde en plus une validation de schéma et un plafond de taille des
+// photos pour protéger le quota Firebase.
+
+function signedIn() {
+  return request.auth != null;
+}
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     match /groups/{groupId} {
 
-      // Lecture ouverte (nécessaire tant qu'il n'y a pas d'auth).
-      allow read: if true;
+      allow read: if signedIn();
 
       // Création d'un groupe : champs obligatoires et bien typés.
-      allow create: if request.resource.data.name is string
+      allow create: if signedIn()
+                    && request.resource.data.name is string
                     && request.resource.data.name.size() > 0
                     && request.resource.data.name.size() <= 60
                     && request.resource.data.code is string
@@ -32,29 +36,32 @@ service cloud.firestore {
                     && request.resource.data.createdByEmail is string;
 
       // Mise à jour limitée au compteur de membres.
-      allow update: if request.resource.data.diff(resource.data)
+      allow update: if signedIn()
+                    && request.resource.data.diff(resource.data)
                           .affectedKeys().hasOnly(['memberCount']);
 
       // Pas de suppression de groupe depuis le client.
       allow delete: if false;
 
       match /members/{memberId} {
-        allow read: if true;
-        allow create: if request.resource.data.username is string
+        allow read: if signedIn();
+        allow create: if signedIn()
+                      && request.resource.data.username is string
                       && request.resource.data.username.size() > 0
                       && request.resource.data.username.size() <= 40
                       && request.resource.data.email is string;
         allow update: if false;
-        allow delete: if true;
+        allow delete: if signedIn();
       }
 
       match /photos/{photoId} {
-        allow read: if true;
+        allow read: if signedIn();
 
         // Création d'une photo : schéma validé et image plafonnée à ~700 Ko
         // de base64 (≈ 500 Ko binaire), bien en dessous de la limite de 1 Mo
         // d'un document Firestore.
-        allow create: if request.resource.data.imageBase64 is string
+        allow create: if signedIn()
+                      && request.resource.data.imageBase64 is string
                       && request.resource.data.imageBase64.size() > 0
                       && request.resource.data.imageBase64.size() < 700000
                       && request.resource.data.personName is string
@@ -64,7 +71,7 @@ service cloud.firestore {
 
         // Une photo ne se modifie pas, mais peut être supprimée.
         allow update: if false;
-        allow delete: if true;
+        allow delete: if signedIn();
       }
     }
   }

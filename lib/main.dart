@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -25,8 +26,19 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+
+    // Connexion anonyme : invisible pour l'utilisateur (aucun compte à créer),
+    // mais elle donne à chaque appareil un identifiant Firebase. Cela permet
+    // aux règles Firestore d'exiger `request.auth != null` et donc de bloquer
+    // les accès depuis l'extérieur de l'app.
+    //
+    // ⚠️ Nécessite d'avoir activé le fournisseur « Anonyme » dans la console
+    // Firebase (Authentication > Sign-in method > Anonymous > Activer).
+    if (FirebaseAuth.instance.currentUser == null) {
+      await FirebaseAuth.instance.signInAnonymously();
+    }
   } catch (e) {
-    debugPrint('Firebase init échouée (groupes indisponibles) : $e');
+    debugPrint('Firebase init/auth échouée (groupes indisponibles) : $e');
   }
 
   await NotificationService.init(
