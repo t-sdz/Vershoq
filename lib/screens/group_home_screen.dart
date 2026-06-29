@@ -91,7 +91,7 @@ class _GroupHomeScreenState extends State<GroupHomeScreen>
     return Scaffold(
       backgroundColor: VTheme.bgWarm,
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: VTheme.orange))
+          ? Center(child: CircularProgressIndicator(color: VTheme.orange))
           : CustomScrollView(
               slivers: [
                 _buildAppBar(),
@@ -275,7 +275,7 @@ class _GroupHomeScreenState extends State<GroupHomeScreen>
             context,
             MaterialPageRoute(builder: (_) => const GalleryScreen()),
           ).then((_) => _load()),
-          child: const Text('Voir tout',
+          child: Text('Voir tout',
               style: TextStyle(
                   color: VTheme.orange,
                   fontWeight: FontWeight.bold,

@@ -64,7 +64,7 @@ class _FeedScreenState extends State<FeedScreen> {
       appBar: _buildAppBar(),
       drawer: _buildDrawer(),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: VTheme.orange))
+          ? Center(child: CircularProgressIndicator(color: VTheme.orange))
           : _group != null
               ? _GroupFeed(groupId: _group!.id, userEmail: _user?.email ?? '')
               : _LocalFeed(onReload: _load),
@@ -272,7 +272,7 @@ class _GroupFeed extends StatelessWidget {
       stream: GroupPhotoService.streamGroupPhotos(groupId),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(
+          return Center(
               child: CircularProgressIndicator(color: VTheme.orange));
         }
         final photos = snap.data ?? [];
@@ -524,7 +524,7 @@ class _LocalFeedState extends State<_LocalFeed> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: VTheme.orange));
+      return Center(child: CircularProgressIndicator(color: VTheme.orange));
     }
     if (_photos.isEmpty) return const _EmptyFeed();
     return PageView.builder(

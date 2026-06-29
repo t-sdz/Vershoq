@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/names_service.dart';
 import '../services/notification_service.dart';
+import '../services/theme_service.dart';
 import '../theme/v_theme.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -141,6 +143,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          _SectionTitle('Apparence'),
+          const SizedBox(height: 8),
+          _buildAppearanceCard(),
+          const SizedBox(height: 32),
           _SectionTitle('Notifications'),
           const SizedBox(height: 8),
           _buildNotifCard(),
@@ -184,6 +190,131 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 32),
         ],
       ),
+    );
+  }
+
+  Widget _buildAppearanceCard() {
+    return Card(
+      color: Colors.white,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Couleur',
+                style: TextStyle(
+                    color: VTheme.warmDark,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 16,
+              runSpacing: 14,
+              children: VTheme.palettes.map((p) {
+                final selected = VTheme.palette.id == p.id;
+                return GestureDetector(
+                  onTap: () async {
+                    await ThemeService.setPalette(p);
+                    if (mounted) setState(() {});
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                              colors: p.gradient,
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: selected
+                                  ? VTheme.warmDark
+                                  : Colors.transparent,
+                              width: 3),
+                        ),
+                        child: selected
+                            ? const Icon(Icons.check,
+                                color: Colors.white, size: 22)
+                            : null,
+                      ),
+                      const SizedBox(height: 5),
+                      Text(p.label,
+                          style: const TextStyle(
+                              color: VTheme.warmMuted, fontSize: 11)),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+            const Divider(height: 32, color: Color(0xFFFFE8D6)),
+            const Text('Police des titres',
+                style: TextStyle(
+                    color: VTheme.warmDark,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 10),
+            _fontChips(
+              selected: VTheme.titleFont,
+              onPick: (f) async {
+                await ThemeService.setTitleFont(f);
+                if (mounted) setState(() {});
+              },
+            ),
+            const SizedBox(height: 20),
+            const Text('Police du texte',
+                style: TextStyle(
+                    color: VTheme.warmDark,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 10),
+            _fontChips(
+              selected: VTheme.bodyFont,
+              onPick: (f) async {
+                await ThemeService.setBodyFont(f);
+                if (mounted) setState(() {});
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _fontChips({
+    required String selected,
+    required Future<void> Function(String) onPick,
+  }) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: VTheme.fonts.map((f) {
+        final sel = f == selected;
+        return ChoiceChip(
+          label: Text(
+            f,
+            style: GoogleFonts.getFont(
+              f,
+              color: sel ? Colors.white : VTheme.warmDark,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+            ),
+          ),
+          selected: sel,
+          showCheckmark: false,
+          selectedColor: VTheme.orange,
+          backgroundColor: const Color(0xFFFFF1E6),
+          side: BorderSide(
+              color: sel ? VTheme.orange : const Color(0xFFFFE0C8)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          onSelected: (_) => onPick(f),
+        );
+      }).toList(),
     );
   }
 

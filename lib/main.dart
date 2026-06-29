@@ -9,6 +9,8 @@ import 'screens/camera_screen.dart';
 import 'screens/feed_screen.dart';
 import 'screens/landing_screen.dart';
 import 'services/notification_service.dart';
+import 'services/theme_service.dart';
+import 'theme/v_theme.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -42,6 +44,9 @@ Future<void> main() async {
     debugPrint('Firebase init/auth échouée (groupes indisponibles) : $e');
   }
 
+  // Charge le thème choisi par l'utilisateur (palette + polices).
+  await ThemeService.load();
+
   await NotificationService.init(
     onTap: (personName) {
       navigatorKey.currentState?.push(
@@ -68,64 +73,68 @@ class VershoqApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Vershoq',
-      debugShowCheckedModeBanner: false,
-      navigatorKey: navigatorKey,
-      theme: _buildTheme(),
-      home: initialPersonName != null && initialPersonName!.isNotEmpty
-          ? CameraScreen(personName: initialPersonName!)
-          : const LandingScreen(),
+    // Se reconstruit dès que l'utilisateur change de palette ou de police.
+    return ValueListenableBuilder<int>(
+      valueListenable: ThemeService.revision,
+      builder: (context, _, __) => MaterialApp(
+        title: 'Vershoq',
+        debugShowCheckedModeBanner: false,
+        navigatorKey: navigatorKey,
+        theme: _buildTheme(),
+        home: initialPersonName != null && initialPersonName!.isNotEmpty
+            ? CameraScreen(personName: initialPersonName!)
+            : const LandingScreen(),
+      ),
     );
   }
 
   ThemeData _buildTheme() {
-    const warmDark = Color(0xFF3D1A08);
+    final accent = VTheme.orange;
 
-    // Texte : Inter. Titres : Space Grotesk (style « pop / sticker »).
-    final inter = GoogleFonts.interTextTheme()
-        .apply(bodyColor: warmDark, displayColor: warmDark);
-    final grotesk = GoogleFonts.spaceGroteskTextTheme()
-        .apply(bodyColor: warmDark, displayColor: warmDark);
-    final textTheme = inter.copyWith(
-      displayLarge: grotesk.displayLarge
+    // Texte et titres dans les polices choisies par l'utilisateur.
+    final body = GoogleFonts.getTextTheme(VTheme.bodyFont)
+        .apply(bodyColor: VTheme.warmDark, displayColor: VTheme.warmDark);
+    final titles = GoogleFonts.getTextTheme(VTheme.titleFont)
+        .apply(bodyColor: VTheme.warmDark, displayColor: VTheme.warmDark);
+    final textTheme = body.copyWith(
+      displayLarge: titles.displayLarge
           ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -1.5),
-      displayMedium: grotesk.displayMedium
+      displayMedium: titles.displayMedium
           ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -1),
       displaySmall:
-          grotesk.displaySmall?.copyWith(fontWeight: FontWeight.w700),
+          titles.displaySmall?.copyWith(fontWeight: FontWeight.w700),
       headlineLarge:
-          grotesk.headlineLarge?.copyWith(fontWeight: FontWeight.w700),
+          titles.headlineLarge?.copyWith(fontWeight: FontWeight.w700),
       headlineMedium:
-          grotesk.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
+          titles.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
       headlineSmall:
-          grotesk.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-      titleLarge: grotesk.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+          titles.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+      titleLarge: titles.titleLarge?.copyWith(fontWeight: FontWeight.w700),
     );
 
     return ThemeData(
       useMaterial3: true,
-      fontFamily: GoogleFonts.inter().fontFamily,
+      fontFamily: GoogleFonts.getFont(VTheme.bodyFont).fontFamily,
       textTheme: textTheme,
-      colorScheme: const ColorScheme.light(
-        primary: Color(0xFFFF8A3D),
+      colorScheme: ColorScheme.light(
+        primary: accent,
         onPrimary: Colors.white,
-        secondary: Color(0xFFFF6B6B),
+        secondary: VTheme.coral,
         onSecondary: Colors.white,
-        surface: Color(0xFFFFF1D6),
-        onSurface: warmDark,
+        surface: VTheme.bgWarm,
+        onSurface: VTheme.warmDark,
       ),
-      scaffoldBackgroundColor: const Color(0xFFFFF1D6),
+      scaffoldBackgroundColor: VTheme.bgWarm,
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
-        foregroundColor: warmDark,
+        foregroundColor: VTheme.warmDark,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: const Color(0xFFFF8A3D),
+          backgroundColor: accent,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(30),
@@ -134,16 +143,16 @@ class VershoqApp extends StatelessWidget {
           textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
       ),
-      sliderTheme: const SliderThemeData(
-        activeTrackColor: Color(0xFFFF8A3D),
-        thumbColor: Color(0xFFFF8A3D),
-        inactiveTrackColor: Color(0xFFFFD9C2),
-        valueIndicatorColor: Color(0xFFFF8A3D),
+      sliderTheme: SliderThemeData(
+        activeTrackColor: accent,
+        thumbColor: accent,
+        inactiveTrackColor: const Color(0xFFFFD9C2),
+        valueIndicatorColor: accent,
       ),
       switchTheme: SwitchThemeData(
         trackColor: WidgetStateProperty.resolveWith((s) =>
             s.contains(WidgetState.selected)
-                ? const Color(0xFFFF8A3D)
+                ? accent
                 : const Color(0xFFFFD9C2)),
         thumbColor: WidgetStateProperty.all(Colors.white),
       ),
@@ -151,7 +160,7 @@ class VershoqApp extends StatelessWidget {
         filled: true,
         fillColor: Colors.white,
         hintStyle: TextStyle(color: const Color(0xFF9A6B50).withOpacity(0.5)),
-        prefixIconColor: const Color(0xFFFF8A3D),
+        prefixIconColor: accent,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Color(0xFFFFD9C2)),
@@ -162,7 +171,7 @@ class VershoqApp extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFFF8A3D), width: 2),
+          borderSide: BorderSide(color: accent, width: 2),
         ),
       ),
       cardColor: Colors.white,

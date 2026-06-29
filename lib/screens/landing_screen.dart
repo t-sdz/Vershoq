@@ -42,7 +42,7 @@ class _LandingScreenState extends State<LandingScreen> {
     return Scaffold(
       body: GradientBackground(
         child: _loading
-            ? const Center(child: CircularProgressIndicator(color: VTheme.orange))
+            ? Center(child: CircularProgressIndicator(color: VTheme.orange))
             : Stack(
                 children: [
                   // Decorative blurred circles
@@ -197,7 +197,7 @@ class _OutlineButton extends StatelessWidget {
       child: OutlinedButton(
         style: OutlinedButton.styleFrom(
           foregroundColor: VTheme.orange,
-          side: const BorderSide(color: VTheme.orange, width: 2),
+          side: BorderSide(color: VTheme.orange, width: 2),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
           textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
