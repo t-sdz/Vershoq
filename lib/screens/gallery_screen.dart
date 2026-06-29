@@ -9,10 +9,14 @@ import '../models/photo_entry.dart';
 import '../services/group_photo_service.dart';
 import '../services/group_service.dart';
 import '../services/storage_service.dart';
+import '../theme/v_theme.dart';
 import '../widgets/photo_card.dart';
 
 class GalleryScreen extends StatefulWidget {
-  const GalleryScreen({super.key});
+  /// Si vrai, n'affiche que les photos prises par l'utilisateur ou celles
+  /// où il est identifié (le prénom à capturer correspond à son pseudo).
+  final bool personalOnly;
+  const GalleryScreen({super.key, this.personalOnly = false});
 
   @override
   State<GalleryScreen> createState() => _GalleryScreenState();
@@ -21,6 +25,7 @@ class GalleryScreen extends StatefulWidget {
 class _GalleryScreenState extends State<GalleryScreen> {
   String? _groupId;
   String? _userEmail;
+  String? _userUsername;
   List<PhotoEntry> _localEntries = [];
   bool _loading = true;
 
@@ -39,21 +44,31 @@ class _GalleryScreenState extends State<GalleryScreen> {
       setState(() {
         _groupId = group?.id;
         _userEmail = user?.email;
+        _userUsername = user?.username;
         _localEntries = local;
         _loading = false;
       });
     }
   }
 
+  bool _isMine(GroupPhotoEntry p) {
+    final mineUpload = _userEmail != null && p.uploaderEmail == _userEmail;
+    final tagged = _userUsername != null &&
+        p.personName.trim().toLowerCase() ==
+            _userUsername!.trim().toLowerCase();
+    return mineUpload || tagged;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final title = widget.personalOnly
+        ? 'Ma galerie'
+        : (_groupId != null ? 'Galerie du groupe' : 'Ma galerie');
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF1D6),
-      appBar: AppBar(
-        title: Text(_groupId != null ? 'Galerie du groupe' : 'Ma galerie'),
-      ),
+      backgroundColor: VTheme.bgWarm,
+      appBar: AppBar(title: Text(title)),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFFF8A3D)))
+          ? Center(child: CircularProgressIndicator(color: VTheme.orange))
           : _groupId != null
               ? _buildGroupGallery()
               : _buildLocalGallery(),
@@ -67,10 +82,16 @@ class _GalleryScreenState extends State<GalleryScreen> {
       stream: GroupPhotoService.streamGroupPhotos(_groupId!),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(child: CircularProgressIndicator(color: VTheme.orange));
         }
-        final photos = snap.data ?? [];
-        if (photos.isEmpty) return _emptyState();
+        var photos = snap.data ?? [];
+        if (widget.personalOnly) {
+          photos = photos.where(_isMine).toList();
+        }
+        if (photos.isEmpty) {
+          return _emptyState(
+              personal: widget.personalOnly);
+        }
 
         return GridView.builder(
           padding: const EdgeInsets.all(12),
@@ -102,7 +123,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
   // ── Local gallery ────────────────────────────────────────────────────────────
 
   Widget _buildLocalGallery() {
-    if (_localEntries.isEmpty) return _emptyState();
+    if (_localEntries.isEmpty) return _emptyState(personal: false);
     return GridView.builder(
       padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -129,18 +150,22 @@ class _GalleryScreenState extends State<GalleryScreen> {
     await _load();
   }
 
-  Widget _emptyState() {
-    return const Center(
+  Widget _emptyState({required bool personal}) {
+    return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.photo_library_outlined, size: 64, color: Color(0xFFFFB86B)),
-          SizedBox(height: 16),
-          Text('Aucune photo encore',
-              style: TextStyle(color: Color(0xFF9A6B50), fontSize: 16)),
-          SizedBox(height: 8),
-          Text('Attends une notification !',
-              style: TextStyle(color: Color(0xFFFFB86B), fontSize: 13)),
+          Icon(Icons.photo_library_outlined, size: 64, color: VTheme.peach),
+          const SizedBox(height: 16),
+          Text(personal ? 'Aucune photo de toi' : 'Aucune photo encore',
+              style: TextStyle(color: VTheme.warmMuted, fontSize: 16)),
+          const SizedBox(height: 8),
+          Text(
+              personal
+                  ? 'Tes photos et celles où tu es identifié\napparaîtront ici.'
+                  : 'Attends une notification !',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: VTheme.peach, fontSize: 13)),
         ],
       ),
     );

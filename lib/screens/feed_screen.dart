@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
@@ -12,6 +13,7 @@ import '../services/group_service.dart';
 import '../services/notification_service.dart';
 import '../services/storage_service.dart';
 import '../theme/v_theme.dart';
+import 'gallery_screen.dart';
 import 'groups_screen.dart';
 import 'landing_screen.dart';
 import 'settings_screen.dart';
@@ -198,6 +200,27 @@ class _FeedScreenState extends State<FeedScreen> {
 
             // Nav items
             _DrawerTile(
+              icon: Icons.photo_library_outlined,
+              label: 'Galerie du groupe',
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const GalleryScreen()));
+              },
+            ),
+            _DrawerTile(
+              icon: Icons.person_outline,
+              label: 'Ma galerie',
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) =>
+                            const GalleryScreen(personalOnly: true)));
+              },
+            ),
+            _DrawerTile(
               icon: Icons.group_outlined,
               label: 'Gérer le groupe',
               onTap: () {
@@ -312,6 +335,32 @@ class _GroupPhotoPage extends StatelessWidget {
     required this.total,
   });
 
+  void _openFullscreen(BuildContext context, Uint8List bytes) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => Scaffold(
+        backgroundColor: Colors.black,
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.download_outlined, color: Colors.white),
+              onPressed: () => _download(context),
+            ),
+          ],
+        ),
+        body: Center(
+          child: InteractiveViewer(
+            minScale: 1,
+            maxScale: 5,
+            child: Image.memory(bytes, fit: BoxFit.contain),
+          ),
+        ),
+      ),
+    ));
+  }
+
   Future<void> _download(BuildContext context) async {
     try {
       if (!await Gal.hasAccess()) await Gal.requestAccess();
@@ -365,12 +414,16 @@ class _GroupPhotoPage extends StatelessWidget {
             ),
             const Spacer(),
 
-            // Photo contenue (pas plein écran), coins arrondis façon BeReal
-            ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: AspectRatio(
-                aspectRatio: 3 / 4,
-                child: Image.memory(bytes, fit: BoxFit.cover),
+            // Photo contenue (pas plein écran), coins arrondis façon BeReal.
+            // Tap → affichage plein écran avec zoom.
+            GestureDetector(
+              onTap: () => _openFullscreen(context, bytes),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: AspectRatio(
+                  aspectRatio: 3 / 4,
+                  child: Image.memory(bytes, fit: BoxFit.cover),
+                ),
               ),
             ),
             const SizedBox(height: 16),
