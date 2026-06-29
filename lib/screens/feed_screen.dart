@@ -410,11 +410,6 @@ class _GroupPhotoPage extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(
           children: [
-            // Compteur en haut
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: _Counter(current: index + 1, total: total),
-            ),
             const Spacer(),
 
             // Photo contenue (pas plein écran), coins arrondis façon BeReal.
@@ -634,13 +629,6 @@ class _LocalPhotoPage extends StatelessWidget {
         Image.file(File(entry.localPath), fit: BoxFit.cover),
         const _BottomGradient(),
 
-        // Top counter
-        Positioned(
-          top: MediaQuery.of(context).padding.top + 56,
-          right: 16,
-          child: _Counter(current: index + 1, total: total),
-        ),
-
         // Bottom info
         Positioned(
           bottom: 110,
@@ -714,28 +702,6 @@ class _BottomGradient extends StatelessWidget {
             colors: [Colors.black87, Colors.transparent],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _Counter extends StatelessWidget {
-  final int current;
-  final int total;
-  const _Counter({required this.current, required this.total});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.black45,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        '$current / $total',
-        style: const TextStyle(
-            color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
       ),
     );
   }
