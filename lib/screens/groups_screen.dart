@@ -155,19 +155,19 @@ class _GroupsScreenState extends State<GroupsScreen> {
         children: [
           const Text('👥', style: TextStyle(fontSize: 64)),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'Rejoins tes amis',
             style: TextStyle(
-              color: Colors.white,
+              color: VTheme.warmDark,
               fontSize: 24,
               fontWeight: FontWeight.w900,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Crée un groupe ou rejoins-en un avec un code\npour partager vos moments spontanés.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white54, fontSize: 14, height: 1.4),
+            style: TextStyle(color: VTheme.warmMuted, fontSize: 14, height: 1.4),
           ),
           const SizedBox(height: 40),
           SizedBox(
@@ -182,8 +182,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
             width: double.infinity,
             child: OutlinedButton(
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: const BorderSide(color: Colors.white24),
+                foregroundColor: VTheme.orange,
+                side: BorderSide(color: VTheme.orange.withOpacity(0.5)),
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(30),
@@ -209,9 +209,9 @@ class _GroupsScreenState extends State<GroupsScreen> {
         Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: const Color(0xFF111111),
+            gradient: VTheme.solarGradient,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white12),
+            boxShadow: VTheme.glowSolar,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -235,7 +235,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                   if (isAdmin)
                     IconButton(
                       icon: const Icon(Icons.edit_outlined,
-                          color: Color(0xFFFF8A3D), size: 22),
+                          color: Colors.white, size: 22),
                       tooltip: 'Renommer le groupe',
                       onPressed: _rename,
                     ),
@@ -264,8 +264,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
         Row(
           children: [
             Text('MEMBRES (${_members.length})',
-                style: const TextStyle(
-                    color: Color(0xFF9A6B50),
+                style: TextStyle(
+                    color: VTheme.warmMuted,
                     fontSize: 11,
                     letterSpacing: 2,
                     fontWeight: FontWeight.bold)),
@@ -288,8 +288,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
             contentPadding: EdgeInsets.zero,
             leading: CircleAvatar(
               backgroundColor: mIsAdmin
-                  ? const Color(0xFFFF8A3D)
-                  : const Color(0xFFFFD9C2),
+                  ? VTheme.orange
+                  : VTheme.orange.withOpacity(0.30),
               child: Text(
                 m.username.isNotEmpty ? m.username[0].toUpperCase() : '?',
                 style: const TextStyle(
@@ -301,8 +301,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
                 Flexible(
                   child: Text(m.username,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: Color(0xFF3D1A08),
+                      style: TextStyle(
+                          color: VTheme.warmDark,
                           fontWeight: FontWeight.w600)),
                 ),
                 if (mIsAdmin) ...[
@@ -311,12 +311,12 @@ class _GroupsScreenState extends State<GroupsScreen> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFE8D6),
+                      color: VTheme.orange.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(mIsCreator ? 'créateur' : 'admin',
-                        style: const TextStyle(
-                            color: Color(0xFFFF8A3D),
+                        style: TextStyle(
+                            color: VTheme.orange,
                             fontSize: 10,
                             fontWeight: FontWeight.bold)),
                   ),
@@ -324,7 +324,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
               ],
             ),
             subtitle: Text(m.email,
-                style: const TextStyle(color: Color(0xFF9A6B50), fontSize: 12)),
+                style: TextStyle(color: VTheme.warmMuted, fontSize: 12)),
             trailing: _memberTrailing(group, m, isAdmin, mIsAdmin, mIsCreator),
           );
         }),
@@ -341,13 +341,13 @@ class _GroupsScreenState extends State<GroupsScreen> {
   Widget? _memberTrailing(Group group, GroupMember m, bool viewerIsAdmin,
       bool mIsAdmin, bool mIsCreator) {
     if (m.email == _user?.email) {
-      return const Text('toi',
-          style: TextStyle(color: Color(0xFF9A6B50), fontSize: 12));
+      return Text('toi',
+          style: TextStyle(color: VTheme.warmMuted, fontSize: 12));
     }
     // Seuls les admins agissent ; le créateur ne peut être ni rétrogradé ni exclu.
     if (!viewerIsAdmin || mIsCreator) return null;
     return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert, color: Color(0xFF9A6B50)),
+      icon: Icon(Icons.more_vert, color: VTheme.warmMuted),
       onSelected: (value) {
         switch (value) {
           case 'promote':

@@ -132,7 +132,7 @@ class _GroupHomeScreenState extends State<GroupHomeScreen>
       snap: true,
       title: Text(
         _group?.name ?? 'Vershoq',
-        style: const TextStyle(
+        style: TextStyle(
             fontWeight: FontWeight.w900,
             fontSize: 24,
             color: VTheme.warmDark),
@@ -205,7 +205,7 @@ class _GroupHomeScreenState extends State<GroupHomeScreen>
                   const SizedBox(height: 6),
                   Text(
                     isMe ? 'Toi' : m.username.split(' ').first,
-                    style: const TextStyle(color: VTheme.warmMuted, fontSize: 11),
+                    style: TextStyle(color: VTheme.warmMuted, fontSize: 11),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -323,7 +323,7 @@ class _GroupHomeScreenState extends State<GroupHomeScreen>
                   child: Text('🎲', style: TextStyle(fontSize: 36))),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Prêt pour les moments spontanés',
               style: TextStyle(
                   color: VTheme.warmDark,
@@ -331,7 +331,7 @@ class _GroupHomeScreenState extends State<GroupHomeScreen>
                   fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Les notifications arriveront de façon aléatoire\ntout au long de la journée.',
               textAlign: TextAlign.center,
               style: TextStyle(color: VTheme.warmMuted, fontSize: 14, height: 1.5),
@@ -352,7 +352,7 @@ class _Label extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(text,
-        style: const TextStyle(
+        style: TextStyle(
             color: VTheme.warmMuted,
             fontSize: 11,
             fontWeight: FontWeight.bold,
@@ -401,7 +401,7 @@ class _StatCard extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           Text(label,
-              style: const TextStyle(color: VTheme.warmMuted, fontSize: 13)),
+              style: TextStyle(color: VTheme.warmMuted, fontSize: 13)),
         ],
       ),
     );

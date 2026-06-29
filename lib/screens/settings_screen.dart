@@ -195,7 +195,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildAppearanceCard() {
     return Card(
-      color: Colors.white,
+      color: VTheme.surface,
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
@@ -203,7 +203,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Couleur',
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              secondary: Icon(
+                  VTheme.isDark ? Icons.dark_mode : Icons.light_mode,
+                  color: VTheme.orange),
+              title: Text('Mode sombre',
+                  style: TextStyle(color: VTheme.warmDark)),
+              subtitle: Text(VTheme.isDark ? 'Activé' : 'Désactivé',
+                  style: TextStyle(color: VTheme.warmMuted, fontSize: 12)),
+              value: VTheme.isDark,
+              activeColor: VTheme.orange,
+              onChanged: (v) async {
+                await ThemeService.setDark(v);
+                if (mounted) setState(() {});
+              },
+            ),
+            Divider(height: 24, color: VTheme.hairline),
+            Text('Couleur',
                 style: TextStyle(
                     color: VTheme.warmDark,
                     fontSize: 13,
@@ -244,7 +261,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       const SizedBox(height: 5),
                       Text(p.label,
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: VTheme.warmMuted, fontSize: 11)),
                     ],
                   ),
@@ -252,7 +269,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }).toList(),
             ),
             const Divider(height: 32, color: Color(0xFFFFE8D6)),
-            const Text('Police des titres',
+            Text('Police des titres',
                 style: TextStyle(
                     color: VTheme.warmDark,
                     fontSize: 13,
@@ -266,7 +283,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
             const SizedBox(height: 20),
-            const Text('Police du texte',
+            Text('Police du texte',
                 style: TextStyle(
                     color: VTheme.warmDark,
                     fontSize: 13,
@@ -320,7 +337,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildNotifCard() {
     return Card(
-      color: Colors.white,
+      color: VTheme.surface,
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       shadowColor: VTheme.orange.withOpacity(0.1),
@@ -332,13 +349,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // Toggle heures
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Limiter les heures',
+              title: Text('Limiter les heures',
                   style: TextStyle(color: VTheme.warmDark)),
               subtitle: Text(
                 _timeLimitEnabled
                     ? 'Entre ${_startHour}h00 et ${_endHour}h00'
                     : 'À toute heure de la journée',
-                style: const TextStyle(color: VTheme.warmMuted, fontSize: 12),
+                style: TextStyle(color: VTheme.warmMuted, fontSize: 12),
               ),
               value: _timeLimitEnabled,
               activeColor: VTheme.orange,
@@ -383,7 +400,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 4),
 
             // Min / Max par jour
-            const Text('Notifications par jour',
+            Text('Notifications par jour',
                 style: TextStyle(
                     color: VTheme.warmDark,
                     fontSize: 13,
@@ -422,7 +439,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Text(
                 'Entre $_minCount et $_maxCount notifications aléatoires par jour',
                 style:
-                    const TextStyle(color: VTheme.warmMuted, fontSize: 12),
+                    TextStyle(color: VTheme.warmMuted, fontSize: 12),
               ),
             ),
           ],
@@ -441,7 +458,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildCountdownCard() {
     return Card(
-      color: Colors.white,
+      color: VTheme.surface,
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
@@ -450,9 +467,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Activer le compte à rebours',
+              title: Text('Activer le compte à rebours',
                   style: TextStyle(color: VTheme.warmDark)),
-              subtitle: const Text(
+              subtitle: Text(
                 'Capture automatique à la fin du temps',
                 style: TextStyle(color: VTheme.warmMuted, fontSize: 12),
               ),
@@ -491,7 +508,7 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text.toUpperCase(),
-      style: const TextStyle(
+      style: TextStyle(
         color: VTheme.warmMuted,
         fontWeight: FontWeight.bold,
         fontSize: 11,
@@ -527,7 +544,7 @@ class _SliderRow extends StatelessWidget {
         SizedBox(
           width: 100,
           child: Text(label,
-              style: const TextStyle(color: VTheme.warmDark, fontSize: 13)),
+              style: TextStyle(color: VTheme.warmDark, fontSize: 13)),
         ),
         Expanded(
           child: Slider(
@@ -542,7 +559,7 @@ class _SliderRow extends StatelessWidget {
           width: 56,
           child: Text(display,
               textAlign: TextAlign.right,
-              style: const TextStyle(
+              style: TextStyle(
                   color: VTheme.warmDark, fontWeight: FontWeight.bold)),
         ),
       ],

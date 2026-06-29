@@ -139,7 +139,7 @@ class _FeedScreenState extends State<FeedScreen> {
 
             // Members avatars
             if (_members.isNotEmpty) ...[
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(horizontal: 20),
                 child: Text('MEMBRES',
                     style: TextStyle(
@@ -184,7 +184,7 @@ class _FeedScreenState extends State<FeedScreen> {
                         const SizedBox(height: 4),
                         Text(
                           isMe ? 'Toi' : m.username.split(' ').first,
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: VTheme.warmMuted, fontSize: 10),
                         ),
                       ],
@@ -718,30 +718,31 @@ class _DrawerTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final Color color;
+  final Color? color;
 
   const _DrawerTile({
     required this.icon,
     required this.label,
     required this.onTap,
-    this.color = VTheme.warmDark,
+    this.color,
   });
 
   @override
   Widget build(BuildContext context) {
+    final c = color ?? VTheme.warmDark;
     return ListTile(
       leading: Container(
         width: 38,
         height: 38,
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: c.withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(icon, color: color, size: 20),
+        child: Icon(icon, color: c, size: 20),
       ),
       title: Text(label,
           style: TextStyle(
-              color: color, fontWeight: FontWeight.w600, fontSize: 15)),
+              color: c, fontWeight: FontWeight.w600, fontSize: 15)),
       onTap: onTap,
     );
   }
@@ -753,7 +754,7 @@ class _EmptyFeed extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(gradient: VTheme.bgGradient),
+      decoration: BoxDecoration(gradient: VTheme.bgGradient),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -770,13 +771,13 @@ class _EmptyFeed extends StatelessWidget {
                   child: Text('📸', style: TextStyle(fontSize: 44))),
             ),
             const SizedBox(height: 24),
-            const Text('Aucune photo encore',
+            Text('Aucune photo encore',
                 style: TextStyle(
                     color: VTheme.warmDark,
                     fontSize: 20,
                     fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            const Text('Attends la notification Vershoq\npour capturer un moment !',
+            Text('Attends la notification Vershoq\npour capturer un moment !',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: VTheme.warmMuted, fontSize: 14)),
             const SizedBox(height: 120),

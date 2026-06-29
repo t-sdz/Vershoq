@@ -60,13 +60,13 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
         children: [
           const Text('🔑', style: TextStyle(fontSize: 48)),
           const SizedBox(height: 12),
-          const Text('Rejoindre',
+          Text('Rejoindre',
               style: TextStyle(
                   color: VTheme.warmDark,
                   fontSize: 24,
                   fontWeight: FontWeight.w900)),
           const SizedBox(height: 4),
-          const Text('Entre le code que ton ami t\'a partagé.',
+          Text('Entre le code que ton ami t\'a partagé.',
               style: TextStyle(color: VTheme.warmMuted, fontSize: 14)),
           const SizedBox(height: 28),
           AppTextField(

@@ -9,6 +9,7 @@ class ThemeService {
   static const _paletteKey = 'theme_palette';
   static const _titleFontKey = 'theme_title_font';
   static const _bodyFontKey = 'theme_body_font';
+  static const _darkKey = 'theme_dark';
 
   /// Incrémenté à chaque changement → déclenche la reconstruction du thème.
   static final ValueNotifier<int> revision = ValueNotifier<int>(0);
@@ -25,6 +26,14 @@ class ThemeService {
     }
     VTheme.titleFont = prefs.getString(_titleFontKey) ?? VTheme.titleFont;
     VTheme.bodyFont = prefs.getString(_bodyFontKey) ?? VTheme.bodyFont;
+    VTheme.isDark = prefs.getBool(_darkKey) ?? false;
+  }
+
+  static Future<void> setDark(bool dark) async {
+    VTheme.isDark = dark;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_darkKey, dark);
+    revision.value++;
   }
 
   static Future<void> setPalette(VPalette palette) async {

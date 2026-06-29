@@ -26,7 +26,7 @@ class AppTextField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: const TextStyle(
+            style: TextStyle(
                 color: VTheme.warmDark,
                 fontSize: 13,
                 fontWeight: FontWeight.w700)),
@@ -35,7 +35,7 @@ class AppTextField extends StatelessWidget {
           controller: controller,
           keyboardType: keyboardType,
           textCapitalization: capitalization,
-          style: const TextStyle(color: VTheme.warmDark),
+          style: TextStyle(color: VTheme.warmDark),
           decoration: InputDecoration(
             hintText: hint,
             prefixIcon: Icon(icon, color: VTheme.orange),

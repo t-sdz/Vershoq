@@ -23,6 +23,7 @@ class VTheme {
   static VPalette palette = palettes.first;
   static String titleFont = 'Space Grotesk';
   static String bodyFont = 'Inter';
+  static bool isDark = false;
 
   static const List<VPalette> palettes = [
     VPalette(
@@ -85,7 +86,7 @@ class VTheme {
   static TextStyle grotesk({
     double? fontSize,
     FontWeight fontWeight = FontWeight.w700,
-    Color color = warmDark,
+    Color? color,
     double letterSpacing = -0.5,
     double? height,
     List<Shadow>? shadows,
@@ -94,16 +95,31 @@ class VTheme {
         titleFont,
         fontSize: fontSize,
         fontWeight: fontWeight,
-        color: color,
+        color: color ?? warmDark,
         letterSpacing: letterSpacing,
         height: height,
         shadows: shadows,
       );
 
-  // ── Ancres fixes (texte / fond) ────────────────────────────────────────────
-  static const warmDark = Color(0xFF3D1A08);
-  static const warmMuted = Color(0xFF9A6B50);
-  static const bgWarm = Color(0xFFFFF1D6);
+  // ── Ancres texte / fond (suivent le mode clair / sombre) ───────────────────
+  // Noms historiques conservés pour ne pas casser les appels existants :
+  //   warmDark  = couleur de texte principale
+  //   warmMuted = couleur de texte secondaire
+  //   bgWarm    = couleur de fond de l'app
+  static Color get warmDark =>
+      isDark ? const Color(0xFFF2E9DE) : const Color(0xFF3D1A08);
+  static Color get warmMuted =>
+      isDark ? const Color(0xFFA98E78) : const Color(0xFF9A6B50);
+  static Color get bgWarm =>
+      isDark ? const Color(0xFF15110D) : const Color(0xFFFFF1D6);
+
+  /// Fond des cartes / champs (blanc en clair, gris chaud foncé en sombre).
+  static Color get surface =>
+      isDark ? const Color(0xFF241D17) : Colors.white;
+
+  /// Bordure douce qui suit le mode.
+  static Color get hairline =>
+      isDark ? const Color(0xFF3A2F26) : const Color(0xFFFFE0C8);
 
   // ── Accents dynamiques (suivent la palette choisie) ────────────────────────
   static Color get orange => palette.accent;
@@ -127,11 +143,17 @@ class VTheme {
   static const hotPink = Color(0xFFFF5C8A);
   static const peach = Color(0xFFFFB86B);
 
-  static const bgGradient = LinearGradient(
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
-    colors: [Color(0xFFFFF1D6), Color(0xFFFFD9C2), Color(0xFFFFC2CE)],
-  );
+  static LinearGradient get bgGradient => isDark
+      ? const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF15110D), Color(0xFF1E1712), Color(0xFF241620)],
+        )
+      : const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFFFF1D6), Color(0xFFFFD9C2), Color(0xFFFFC2CE)],
+        );
 
   static const coralGradient = LinearGradient(
     begin: Alignment.topLeft,
@@ -234,7 +256,7 @@ class GradientBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(gradient: VTheme.bgGradient),
+      decoration: BoxDecoration(gradient: VTheme.bgGradient),
       child: child,
     );
   }

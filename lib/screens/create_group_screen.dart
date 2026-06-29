@@ -65,7 +65,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
             style: VTheme.grotesk(
                 color: VTheme.warmDark, fontSize: 26, fontWeight: FontWeight.w800)),
         const SizedBox(height: 4),
-        const Text('Un code sera généré automatiquement pour inviter tes amis.',
+        Text('Un code sera généré automatiquement pour inviter tes amis.',
             style: TextStyle(color: VTheme.warmMuted, fontSize: 14)),
         const SizedBox(height: 28),
         AppTextField(
@@ -130,10 +130,10 @@ class _SuccessView extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Text(group.name,
-              style: const TextStyle(
+              style: TextStyle(
                   color: VTheme.warmDark, fontSize: 26, fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
-          const Text('Groupe créé ! Partage ce code :',
+          Text('Groupe créé ! Partage ce code :',
               style: TextStyle(color: VTheme.warmMuted)),
           const SizedBox(height: 24),
           GestureDetector(
@@ -166,7 +166,7 @@ class _SuccessView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          const Text('Touche le code pour le copier',
+          Text('Touche le code pour le copier',
               style: TextStyle(color: VTheme.warmMuted, fontSize: 12)),
           const SizedBox(height: 40),
           SizedBox(

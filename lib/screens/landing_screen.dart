@@ -80,7 +80,7 @@ class _LandingScreenState extends State<LandingScreen> {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          const Text(
+                          Text(
                             'Capturez les moments spontanés\navec vos amis. ☀️',
                             style: TextStyle(
                               color: VTheme.warmMuted,
@@ -142,7 +142,7 @@ class _GroupBanner extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: VTheme.surface,
           borderRadius: BorderRadius.circular(24),
           boxShadow: VTheme.cardShadow,
         ),
@@ -162,7 +162,7 @@ class _GroupBanner extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('TON GROUPE',
+                  Text('TON GROUPE',
                       style: TextStyle(
                           color: VTheme.warmMuted,
                           fontSize: 11,
@@ -170,14 +170,14 @@ class _GroupBanner extends StatelessWidget {
                           fontWeight: FontWeight.bold)),
                   const SizedBox(height: 2),
                   Text(group.name,
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: VTheme.warmDark,
                           fontSize: 18,
                           fontWeight: FontWeight.w900)),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: VTheme.warmMuted),
+            Icon(Icons.chevron_right_rounded, color: VTheme.warmMuted),
           ],
         ),
       ),

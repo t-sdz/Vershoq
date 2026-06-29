@@ -114,18 +114,22 @@ class VershoqApp extends StatelessWidget {
 
     return ThemeData(
       useMaterial3: true,
+      brightness: VTheme.isDark ? Brightness.dark : Brightness.light,
       fontFamily: GoogleFonts.getFont(VTheme.bodyFont).fontFamily,
       textTheme: textTheme,
-      colorScheme: ColorScheme.light(
+      colorScheme: ColorScheme(
+        brightness: VTheme.isDark ? Brightness.dark : Brightness.light,
         primary: accent,
         onPrimary: Colors.white,
         secondary: VTheme.coral,
         onSecondary: Colors.white,
-        surface: VTheme.bgWarm,
+        error: VTheme.coral,
+        onError: Colors.white,
+        surface: VTheme.surface,
         onSurface: VTheme.warmDark,
       ),
       scaffoldBackgroundColor: VTheme.bgWarm,
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         foregroundColor: VTheme.warmDark,
         elevation: 0,
@@ -146,35 +150,33 @@ class VershoqApp extends StatelessWidget {
       sliderTheme: SliderThemeData(
         activeTrackColor: accent,
         thumbColor: accent,
-        inactiveTrackColor: const Color(0xFFFFD9C2),
+        inactiveTrackColor: VTheme.hairline,
         valueIndicatorColor: accent,
       ),
       switchTheme: SwitchThemeData(
         trackColor: WidgetStateProperty.resolveWith((s) =>
-            s.contains(WidgetState.selected)
-                ? accent
-                : const Color(0xFFFFD9C2)),
+            s.contains(WidgetState.selected) ? accent : VTheme.hairline),
         thumbColor: WidgetStateProperty.all(Colors.white),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white,
-        hintStyle: TextStyle(color: const Color(0xFF9A6B50).withOpacity(0.5)),
+        fillColor: VTheme.surface,
+        hintStyle: TextStyle(color: VTheme.warmMuted.withOpacity(0.6)),
         prefixIconColor: accent,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFFFD9C2)),
+          borderSide: BorderSide(color: VTheme.hairline),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFFFD9C2)),
+          borderSide: BorderSide(color: VTheme.hairline),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: accent, width: 2),
         ),
       ),
-      cardColor: Colors.white,
+      cardColor: VTheme.surface,
     );
   }
 }
