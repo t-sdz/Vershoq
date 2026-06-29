@@ -78,6 +78,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('countdown_enabled', _countdownEnabled);
     await prefs.setInt('countdown_seconds', _countdownSeconds);
+    // Replanifie pour que le chrono des notifs suive la nouvelle durée.
+    await NotificationService.cancelAll();
+    await NotificationService.scheduleRandom();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Compte à rebours enregistré !')),
+      );
+    }
   }
 
   Future<void> _addName() async {
@@ -147,6 +155,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _SectionTitle('Compte à rebours'),
           const SizedBox(height: 8),
           _buildCountdownCard(),
+          const SizedBox(height: 12),
+          GradientButton(
+            label: 'Enregistrer le compte à rebours',
+            gradient: VTheme.solarGradient,
+            shadows: VTheme.glowSolar,
+            onPressed: _saveCountdownSettings,
+          ),
           const SizedBox(height: 32),
           _SectionTitle('Liste des prénoms'),
           const SizedBox(height: 8),
@@ -312,10 +327,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               value: _countdownEnabled,
               activeColor: VTheme.orange,
-              onChanged: (v) {
-                setState(() => _countdownEnabled = v);
-                _saveCountdownSettings();
-              },
+              onChanged: (v) => setState(() => _countdownEnabled = v),
             ),
             if (_countdownEnabled)
               Padding(
@@ -330,7 +342,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: (v) {
                     final snapped = (v / 15).round() * 15;
                     setState(() => _countdownSeconds = snapped);
-                    _saveCountdownSettings();
                   },
                 ),
               ),

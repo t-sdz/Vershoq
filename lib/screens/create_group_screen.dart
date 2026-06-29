@@ -61,8 +61,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        const Text('🎉', style: TextStyle(fontSize: 48)),
-        const SizedBox(height: 12),
         const Text('Nouveau groupe',
             style: TextStyle(color: VTheme.warmDark, fontSize: 24, fontWeight: FontWeight.w900)),
         const SizedBox(height: 4),
