@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/storage_service.dart';
+import '../theme/v_theme.dart';
 import 'result_screen.dart';
 
 class CameraScreen extends StatefulWidget {
@@ -357,12 +358,12 @@ class _Header extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             personName,
-            style: const TextStyle(
+            style: VTheme.grotesk(
               color: Colors.white,
-              fontSize: 32,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.5,
-              shadows: [Shadow(blurRadius: 12, color: Colors.black87)],
+              fontSize: 34,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -1,
+              shadows: const [Shadow(blurRadius: 12, color: Colors.black87)],
             ),
           ),
           if (countdownEnabled) ...[

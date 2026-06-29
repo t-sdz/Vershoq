@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'firebase_options.dart';
 import 'screens/camera_screen.dart';
@@ -80,8 +81,32 @@ class VershoqApp extends StatelessWidget {
 
   ThemeData _buildTheme() {
     const warmDark = Color(0xFF3D1A08);
+
+    // Texte : Inter. Titres : Space Grotesk (style « pop / sticker »).
+    final inter = GoogleFonts.interTextTheme()
+        .apply(bodyColor: warmDark, displayColor: warmDark);
+    final grotesk = GoogleFonts.spaceGroteskTextTheme()
+        .apply(bodyColor: warmDark, displayColor: warmDark);
+    final textTheme = inter.copyWith(
+      displayLarge: grotesk.displayLarge
+          ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -1.5),
+      displayMedium: grotesk.displayMedium
+          ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -1),
+      displaySmall:
+          grotesk.displaySmall?.copyWith(fontWeight: FontWeight.w700),
+      headlineLarge:
+          grotesk.headlineLarge?.copyWith(fontWeight: FontWeight.w700),
+      headlineMedium:
+          grotesk.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
+      headlineSmall:
+          grotesk.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+      titleLarge: grotesk.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+    );
+
     return ThemeData(
       useMaterial3: true,
+      fontFamily: GoogleFonts.inter().fontFamily,
+      textTheme: textTheme,
       colorScheme: const ColorScheme.light(
         primary: Color(0xFFFF8A3D),
         onPrimary: Colors.white,
@@ -141,15 +166,6 @@ class VershoqApp extends StatelessWidget {
         ),
       ),
       cardColor: Colors.white,
-      textTheme: const TextTheme(
-        displayLarge: TextStyle(
-            fontWeight: FontWeight.w900,
-            color: warmDark,
-            letterSpacing: -1.5),
-        titleLarge:
-            TextStyle(color: warmDark, fontWeight: FontWeight.w700),
-        bodyMedium: TextStyle(color: warmDark),
-      ),
     );
   }
 }

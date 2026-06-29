@@ -79,13 +79,13 @@ class _FeedScreenState extends State<FeedScreen> {
       centerTitle: true,
       title: ShaderMask(
         shaderCallback: (b) => VTheme.solarGradient.createShader(b),
-        child: const Text(
+        child: Text(
           'Vershoq',
-          style: TextStyle(
+          style: VTheme.grotesk(
               color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.5),
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -1),
         ),
       ),
       leading: Builder(
@@ -410,10 +410,10 @@ class _GroupPhotoPage extends StatelessWidget {
                           children: [
                             TextSpan(
                               text: '@${photo.uploaderUsername}',
-                              style: const TextStyle(
+                              style: VTheme.grotesk(
                                 color: Colors.white,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 19,
                               ),
                             ),
                             const TextSpan(
@@ -425,10 +425,10 @@ class _GroupPhotoPage extends StatelessWidget {
                             ),
                             TextSpan(
                               text: photo.personName,
-                              style: const TextStyle(
+                              style: VTheme.grotesk(
                                 color: VTheme.sunshine,
                                 fontWeight: FontWeight.w800,
-                                fontSize: 18,
+                                fontSize: 19,
                               ),
                             ),
                           ],

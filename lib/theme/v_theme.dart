@@ -1,6 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class VTheme {
+  // ── Typography ─────────────────────────────────────────────────────────────
+  /// Police « sticker » pour les gros titres (Space Grotesk).
+  static TextStyle grotesk({
+    double? fontSize,
+    FontWeight fontWeight = FontWeight.w700,
+    Color color = warmDark,
+    double letterSpacing = -0.5,
+    double? height,
+    List<Shadow>? shadows,
+  }) =>
+      GoogleFonts.spaceGrotesk(
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        color: color,
+        letterSpacing: letterSpacing,
+        height: height,
+        shadows: shadows,
+      );
+
   // ── Core colors ────────────────────────────────────────────────────────────
   static const warmDark  = Color(0xFF3D1A08);
   static const warmMuted = Color(0xFF9A6B50);
@@ -106,10 +126,11 @@ class GradientButton extends StatelessWidget {
           child: Center(
             child: active
                 ? Text(label,
-                    style: const TextStyle(
+                    style: VTheme.grotesk(
                         color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16))
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        letterSpacing: 0))
                 : const SizedBox(
                     width: 22,
                     height: 22,

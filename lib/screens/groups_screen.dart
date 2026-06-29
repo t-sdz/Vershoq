@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/group.dart';
 import '../services/group_service.dart';
+import '../theme/v_theme.dart';
 import 'create_group_screen.dart';
 import 'join_group_screen.dart';
 
@@ -226,10 +227,10 @@ class _GroupsScreenState extends State<GroupsScreen> {
                 children: [
                   Expanded(
                     child: Text(group.name,
-                        style: const TextStyle(
+                        style: VTheme.grotesk(
                             color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.w900)),
+                            fontSize: 30,
+                            fontWeight: FontWeight.w800)),
                   ),
                   if (isAdmin)
                     IconButton(

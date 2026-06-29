@@ -61,8 +61,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        const Text('Nouveau groupe',
-            style: TextStyle(color: VTheme.warmDark, fontSize: 24, fontWeight: FontWeight.w900)),
+        Text('Nouveau groupe',
+            style: VTheme.grotesk(
+                color: VTheme.warmDark, fontSize: 26, fontWeight: FontWeight.w800)),
         const SizedBox(height: 4),
         const Text('Un code sera généré automatiquement pour inviter tes amis.',
             style: TextStyle(color: VTheme.warmMuted, fontSize: 14)),
