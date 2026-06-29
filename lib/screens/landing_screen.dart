@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/group.dart';
 import '../services/group_service.dart';
+import '../services/theme_service.dart';
 import '../theme/v_theme.dart';
 import 'create_group_screen.dart';
 import 'feed_screen.dart';
@@ -39,7 +40,8 @@ class _LandingScreenState extends State<LandingScreen> {
     final top = MediaQuery.of(context).padding.top;
     final bottom = MediaQuery.of(context).padding.bottom;
 
-    return Scaffold(
+    return ThemedScope(
+      builder: (context) => Scaffold(
       body: GradientBackground(
         child: _loading
             ? Center(child: CircularProgressIndicator(color: VTheme.orange))
@@ -124,6 +126,7 @@ class _LandingScreenState extends State<LandingScreen> {
                   ),
                 ],
               ),
+      ),
       ),
     );
   }

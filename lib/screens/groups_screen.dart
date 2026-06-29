@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/group.dart';
 import '../services/group_service.dart';
+import '../services/theme_service.dart';
 import '../theme/v_theme.dart';
 import 'create_group_screen.dart';
 import 'join_group_screen.dart';
@@ -137,13 +138,15 @@ class _GroupsScreenState extends State<GroupsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Groupe')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _current != null
-              ? _buildCurrentGroup()
-              : _buildChoice(),
+    return ThemedScope(
+      builder: (context) => Scaffold(
+        appBar: AppBar(title: const Text('Groupe')),
+        body: _loading
+            ? Center(child: CircularProgressIndicator(color: VTheme.orange))
+            : _current != null
+                ? _buildCurrentGroup()
+                : _buildChoice(),
+      ),
     );
   }
 

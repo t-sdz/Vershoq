@@ -314,19 +314,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return ChoiceChip(
           label: Text(
             f,
+            // Couleur de texte constante (lisible) quel que soit l'état.
             style: GoogleFonts.getFont(
               f,
-              color: sel ? Colors.white : VTheme.warmDark,
+              color: VTheme.warmDark,
               fontWeight: FontWeight.w600,
               fontSize: 13,
             ),
           ),
           selected: sel,
           showCheckmark: false,
-          selectedColor: VTheme.orange,
-          backgroundColor: const Color(0xFFFFF1E6),
+          // La sélection est indiquée par la bordure, pas par le fond,
+          // pour que le texte garde la même couleur.
+          selectedColor: VTheme.orange.withOpacity(0.18),
+          backgroundColor: VTheme.surface,
           side: BorderSide(
-              color: sel ? VTheme.orange : const Color(0xFFFFE0C8)),
+              color: sel ? VTheme.orange : VTheme.hairline,
+              width: sel ? 2 : 1),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           onSelected: (_) => onPick(f),

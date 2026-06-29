@@ -1,7 +1,23 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../theme/v_theme.dart';
+
+/// Enveloppe un écran pour qu'il se reconstruise quand le thème change
+/// (les couleurs VTheme étant lues statiquement, sans ce scope les écrans
+/// déjà empilés gardent leurs anciennes couleurs).
+class ThemedScope extends StatelessWidget {
+  final WidgetBuilder builder;
+  const ThemedScope({super.key, required this.builder});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: ThemeService.revision,
+      builder: (context, _, __) => builder(context),
+    );
+  }
+}
 
 /// Gère le thème choisi par l'utilisateur (palette + polices), le persiste,
 /// et notifie l'app pour qu'elle se re-rende instantanément.

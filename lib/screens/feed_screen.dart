@@ -12,6 +12,7 @@ import '../services/group_photo_service.dart';
 import '../services/group_service.dart';
 import '../services/notification_service.dart';
 import '../services/storage_service.dart';
+import '../services/theme_service.dart';
 import '../theme/v_theme.dart';
 import 'gallery_screen.dart';
 import 'groups_screen.dart';
@@ -60,23 +61,25 @@ class _FeedScreenState extends State<FeedScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      backgroundColor: Colors.black,
-      appBar: _buildAppBar(),
-      drawer: _buildDrawer(),
-      body: _loading
-          ? Center(child: CircularProgressIndicator(color: VTheme.orange))
-          : _group != null
-              ? _GroupFeed(groupId: _group!.id, userEmail: _user?.email ?? '')
-              : _LocalFeed(onReload: _load),
+    return ThemedScope(
+      builder: (context) => Scaffold(
+        extendBodyBehindAppBar: true,
+        backgroundColor: VTheme.bgWarm,
+        appBar: _buildAppBar(),
+        drawer: _buildDrawer(),
+        body: _loading
+            ? Center(child: CircularProgressIndicator(color: VTheme.orange))
+            : _group != null
+                ? _GroupFeed(groupId: _group!.id, userEmail: _user?.email ?? '')
+                : _LocalFeed(onReload: _load),
+      ),
     );
   }
 
   AppBar _buildAppBar() {
     return AppBar(
       backgroundColor: Colors.transparent,
-      foregroundColor: Colors.white,
+      foregroundColor: VTheme.warmDark,
       elevation: 0,
       centerTitle: true,
       title: ShaderMask(
@@ -92,7 +95,7 @@ class _FeedScreenState extends State<FeedScreen> {
       ),
       leading: Builder(
         builder: (ctx) => IconButton(
-          icon: const Icon(Icons.menu_rounded, color: Colors.white),
+          icon: Icon(Icons.menu_rounded, color: VTheme.warmDark),
           onPressed: () => Scaffold.of(ctx).openDrawer(),
         ),
       ),
@@ -464,22 +467,22 @@ class _GroupPhotoPage extends StatelessWidget {
                             TextSpan(
                               text: '@${photo.uploaderUsername}',
                               style: VTheme.grotesk(
-                                color: Colors.white,
+                                color: VTheme.warmDark,
                                 fontWeight: FontWeight.w800,
                                 fontSize: 19,
                               ),
                             ),
-                            const TextSpan(
+                            TextSpan(
                               text: ' feat. ',
                               style: TextStyle(
-                                color: Colors.white54,
+                                color: VTheme.warmMuted,
                                 fontSize: 15,
                               ),
                             ),
                             TextSpan(
                               text: photo.personName,
                               style: VTheme.grotesk(
-                                color: VTheme.sunshine,
+                                color: VTheme.orange,
                                 fontWeight: FontWeight.w800,
                                 fontSize: 19,
                               ),
@@ -490,8 +493,8 @@ class _GroupPhotoPage extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         _fmt(photo.timestamp),
-                        style: const TextStyle(
-                            color: Colors.white38, fontSize: 11),
+                        style: TextStyle(
+                            color: VTheme.warmMuted, fontSize: 11),
                       ),
                     ],
                   ),
@@ -518,15 +521,15 @@ class _GroupPhotoPage extends StatelessWidget {
             SizedBox(
               height: 28,
               child: index < total - 1
-                  ? const Row(
+                  ? Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.keyboard_arrow_up_rounded,
-                            color: Colors.white38, size: 18),
-                        SizedBox(width: 4),
+                            color: VTheme.warmMuted, size: 18),
+                        const SizedBox(width: 4),
                         Text('Swipe pour la suite',
-                            style:
-                                TextStyle(color: Colors.white38, fontSize: 11)),
+                            style: TextStyle(
+                                color: VTheme.warmMuted, fontSize: 11)),
                       ],
                     )
                   : null,

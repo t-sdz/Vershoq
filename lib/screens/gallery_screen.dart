@@ -9,6 +9,7 @@ import '../models/photo_entry.dart';
 import '../services/group_photo_service.dart';
 import '../services/group_service.dart';
 import '../services/storage_service.dart';
+import '../services/theme_service.dart';
 import '../theme/v_theme.dart';
 import '../widgets/photo_card.dart';
 
@@ -64,14 +65,16 @@ class _GalleryScreenState extends State<GalleryScreen> {
     final title = widget.personalOnly
         ? 'Ma galerie'
         : (_groupId != null ? 'Galerie du groupe' : 'Ma galerie');
-    return Scaffold(
-      backgroundColor: VTheme.bgWarm,
-      appBar: AppBar(title: Text(title)),
-      body: _loading
-          ? Center(child: CircularProgressIndicator(color: VTheme.orange))
-          : _groupId != null
-              ? _buildGroupGallery()
-              : _buildLocalGallery(),
+    return ThemedScope(
+      builder: (context) => Scaffold(
+        backgroundColor: VTheme.bgWarm,
+        appBar: AppBar(title: Text(title)),
+        body: _loading
+            ? Center(child: CircularProgressIndicator(color: VTheme.orange))
+            : _groupId != null
+                ? _buildGroupGallery()
+                : _buildLocalGallery(),
+      ),
     );
   }
 
