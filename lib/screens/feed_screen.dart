@@ -353,159 +353,134 @@ class _GroupPhotoPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bytes = base64Decode(photo.imageBase64);
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Image.memory(bytes, fit: BoxFit.cover),
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(
+          children: [
+            // Compteur en haut
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: _Counter(current: index + 1, total: total),
+            ),
+            const Spacer(),
 
-        // Gradient overlay bottom
-        const _BottomGradient(),
-
-        // Top counter
-        Positioned(
-          top: MediaQuery.of(context).padding.top + 56,
-          right: 16,
-          child: _Counter(current: index + 1, total: total),
-        ),
-
-        // Bottom info — BeReal style
-        Positioned(
-          bottom: 0,
-          left: 0,
-          right: 0,
-          child: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: [Colors.black87, Colors.black54, Colors.transparent],
-                stops: [0.0, 0.5, 1.0],
+            // Photo contenue (pas plein écran), coins arrondis façon BeReal
+            ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: AspectRatio(
+                aspectRatio: 3 / 4,
+                child: Image.memory(bytes, fit: BoxFit.cover),
               ),
             ),
-            padding: const EdgeInsets.fromLTRB(20, 60, 20, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 16),
+
+            // Infos SOUS la photo : avatar + @uploader feat. personName + heure
+            Row(
               children: [
-                // Uploader feat subject
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Avatar circle
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: VTheme.solarGradient,
-                        border: Border.all(color: Colors.white24, width: 1.5),
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: VTheme.solarGradient,
+                    border: Border.all(color: Colors.white24, width: 1.5),
+                  ),
+                  child: Center(
+                    child: Text(
+                      photo.uploaderUsername.isNotEmpty
+                          ? photo.uploaderUsername[0].toUpperCase()
+                          : '?',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
                       ),
-                      child: Center(
-                        child: Text(
-                          photo.uploaderUsername.isNotEmpty
-                              ? photo.uploaderUsername[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      RichText(
+                        text: TextSpan(
+                          style: const TextStyle(fontSize: 18, height: 1.2),
+                          children: [
+                            TextSpan(
+                              text: '@${photo.uploaderUsername}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 18,
+                              ),
+                            ),
+                            const TextSpan(
+                              text: ' feat. ',
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 15,
+                              ),
+                            ),
+                            TextSpan(
+                              text: photo.personName,
+                              style: const TextStyle(
+                                color: VTheme.sunshine,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 18,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // "@Thomas feat Alice"
-                          RichText(
-                            text: TextSpan(
-                              style: const TextStyle(fontSize: 18, height: 1.2),
-                              children: [
-                                TextSpan(
-                                  text: '@${photo.uploaderUsername}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                                const TextSpan(
-                                  text: ' feat. ',
-                                  style: TextStyle(
-                                    color: Colors.white54,
-                                    fontWeight: FontWeight.normal,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: photo.personName,
-                                  style: const TextStyle(
-                                    color: VTheme.sunshine,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _fmt(photo.timestamp),
-                            style: const TextStyle(
-                              color: Colors.white38,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 2),
+                      Text(
+                        _fmt(photo.timestamp),
+                        style: const TextStyle(
+                            color: Colors.white38, fontSize: 11),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                // Actions
+                _ActionBtn(
+                  icon: Icons.download_outlined,
+                  onTap: () => _download(context),
+                ),
+                if (isMe) ...[
+                  const SizedBox(width: 10),
+                  _ActionBtn(
+                    icon: Icons.delete_outline,
+                    onTap: () => _delete(context),
+                    color: VTheme.coral,
+                  ),
+                ],
+              ],
+            ),
 
-                // Swipe up hint
-                if (index < total - 1)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 16),
-                    child: Row(
+            const Spacer(),
+
+            // Indice de swipe
+            SizedBox(
+              height: 28,
+              child: index < total - 1
+                  ? const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.keyboard_arrow_up_rounded,
                             color: Colors.white38, size: 18),
                         SizedBox(width: 4),
-                        Text(
-                          'Swipe pour la suite',
-                          style: TextStyle(color: Colors.white38, fontSize: 11),
-                        ),
+                        Text('Swipe pour la suite',
+                            style:
+                                TextStyle(color: Colors.white38, fontSize: 11)),
                       ],
-                    ),
-                  ),
-              ],
+                    )
+                  : null,
             ),
-          ),
+          ],
         ),
-
-        // Right actions
-        Positioned(
-          bottom: 80,
-          right: 16,
-          child: Column(
-            children: [
-              _ActionBtn(
-                icon: Icons.download_outlined,
-                onTap: () => _download(context),
-              ),
-              const SizedBox(height: 16),
-              if (isMe)
-                _ActionBtn(
-                  icon: Icons.delete_outline,
-                  onTap: () => _delete(context),
-                  color: VTheme.coral,
-                ),
-            ],
-          ),
-        ),
-      ],
+      ),
     );
   }
 

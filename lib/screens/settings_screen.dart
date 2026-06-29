@@ -285,6 +285,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  String _fmtCountdown(int seconds) {
+    if (seconds <= 0) return '0s';
+    if (seconds < 60) return '${seconds}s';
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return s == 0 ? '${m}min' : '${m}m$s';
+  }
+
   Widget _buildCountdownCard() {
     return Card(
       color: Colors.white,
@@ -314,12 +322,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: _SliderRow(
                   label: 'Durée',
-                  value: _countdownSeconds.toDouble().clamp(5, 60),
-                  min: 5,
-                  max: 60,
-                  display: '${_countdownSeconds}s',
+                  value: _countdownSeconds.toDouble().clamp(0, 600),
+                  min: 0,
+                  max: 600,
+                  divisions: 40, // paliers de 15 s, de 0 à 10 min
+                  display: _fmtCountdown(_countdownSeconds),
                   onChanged: (v) {
-                    setState(() => _countdownSeconds = v.round());
+                    final snapped = (v / 15).round() * 15;
+                    setState(() => _countdownSeconds = snapped);
                     _saveCountdownSettings();
                   },
                 ),
@@ -356,6 +366,7 @@ class _SliderRow extends StatelessWidget {
   final double max;
   final ValueChanged<double> onChanged;
   final String display;
+  final int? divisions;
 
   const _SliderRow({
     required this.label,
@@ -364,6 +375,7 @@ class _SliderRow extends StatelessWidget {
     required this.max,
     required this.onChanged,
     required this.display,
+    this.divisions,
   });
 
   @override
@@ -380,12 +392,12 @@ class _SliderRow extends StatelessWidget {
             value: value.clamp(min, max),
             min: min,
             max: max,
-            divisions: (max - min).round(),
+            divisions: divisions ?? (max - min).round(),
             onChanged: onChanged,
           ),
         ),
         SizedBox(
-          width: 40,
+          width: 56,
           child: Text(display,
               textAlign: TextAlign.right,
               style: const TextStyle(

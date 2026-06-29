@@ -14,12 +14,12 @@ rules_version = '2';
 // On garde en plus une validation de schéma et un plafond de taille des
 // photos pour protéger le quota Firebase.
 
-function signedIn() {
-  return request.auth != null;
-}
-
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
 
     match /groups/{groupId} {
 
@@ -35,10 +35,11 @@ service cloud.firestore {
                     && request.resource.data.code.size() <= 12
                     && request.resource.data.createdByEmail is string;
 
-      // Mise à jour limitée au compteur de membres.
+      // Mise à jour limitée au compteur de membres, au nom et aux admins
+      // (renommage du groupe, promotion d'un membre administrateur).
       allow update: if signedIn()
                     && request.resource.data.diff(resource.data)
-                          .affectedKeys().hasOnly(['memberCount']);
+                          .affectedKeys().hasOnly(['memberCount', 'name', 'admins']);
 
       // Pas de suppression de groupe depuis le client.
       allow delete: if false;

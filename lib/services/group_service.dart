@@ -41,13 +41,15 @@ class GroupService {
     final now = DateTime.now();
 
     try {
+      final creatorEmail = email.trim().toLowerCase();
       final docRef = await _groups.add({
         'name': name.trim(),
         'code': code,
-        'createdByEmail': email.trim().toLowerCase(),
+        'createdByEmail': creatorEmail,
         'createdByUsername': username.trim(),
         'createdAt': now.toIso8601String(),
         'memberCount': 1,
+        'admins': [creatorEmail],
       });
 
       final member = GroupMember(
@@ -61,9 +63,10 @@ class GroupService {
         id: docRef.id,
         name: name.trim(),
         code: code,
-        createdByEmail: email.trim().toLowerCase(),
+        createdByEmail: creatorEmail,
         createdByUsername: username.trim(),
         createdAt: now,
+        admins: [creatorEmail],
       );
 
       await _saveLocal(group, member);
@@ -154,12 +157,85 @@ class GroupService {
   }
 
   // ---------------------------------------------------------------------------
+  // Administration du groupe
+  // ---------------------------------------------------------------------------
+
+  /// Renomme le groupe (réservé aux admins côté UI).
+  static Future<void> renameGroup(String groupId, String newName) async {
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) throw GroupException('Le nom du groupe est requis.');
+    if (trimmed.length > 60) {
+      throw GroupException('Nom trop long (60 caractères max).');
+    }
+    try {
+      await _groups.doc(groupId).update({'name': trimmed});
+      final current = await getCurrentGroup();
+      if (current != null && current.id == groupId) {
+        await _saveGroupLocal(Group(
+          id: current.id,
+          name: trimmed,
+          code: current.code,
+          createdByEmail: current.createdByEmail,
+          createdByUsername: current.createdByUsername,
+          createdAt: current.createdAt,
+          admins: current.admins,
+        ));
+      }
+    } on FirebaseException catch (e) {
+      throw GroupException('Erreur Firebase : ${e.message ?? e.code}');
+    }
+  }
+
+  /// Promeut un membre administrateur du groupe.
+  static Future<void> addAdmin(String groupId, String memberEmail) async {
+    try {
+      await _groups.doc(groupId).update({
+        'admins': FieldValue.arrayUnion([memberEmail.trim().toLowerCase()]),
+      });
+    } on FirebaseException catch (e) {
+      throw GroupException('Erreur Firebase : ${e.message ?? e.code}');
+    }
+  }
+
+  /// Retire les droits d'administrateur d'un membre.
+  static Future<void> removeAdmin(String groupId, String memberEmail) async {
+    try {
+      await _groups.doc(groupId).update({
+        'admins': FieldValue.arrayRemove([memberEmail.trim().toLowerCase()]),
+      });
+    } on FirebaseException catch (e) {
+      throw GroupException('Erreur Firebase : ${e.message ?? e.code}');
+    }
+  }
+
+  /// Recharge le groupe courant depuis Firestore (nom + admins à jour) et
+  /// met à jour le cache local. Retombe sur le cache local en cas d'erreur.
+  static Future<Group?> refreshCurrentGroup() async {
+    final local = await getCurrentGroup();
+    if (local == null) return null;
+    try {
+      final doc = await _groups.doc(local.id).get();
+      if (doc.exists && doc.data() != null) {
+        final fresh = Group.fromMap(doc.id, doc.data()!);
+        await _saveGroupLocal(fresh);
+        return fresh;
+      }
+    } catch (_) {}
+    return local;
+  }
+
+  // ---------------------------------------------------------------------------
   // Persistance locale du groupe courant
   // ---------------------------------------------------------------------------
   static Future<void> _saveLocal(Group group, GroupMember member) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_currentGroupKey, jsonEncode(group.toJson()));
     await prefs.setString(_currentUserKey, jsonEncode(member.toMap()));
+  }
+
+  static Future<void> _saveGroupLocal(Group group) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_currentGroupKey, jsonEncode(group.toJson()));
   }
 
   static Future<Group?> getCurrentGroup() async {

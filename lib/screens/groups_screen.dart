@@ -25,7 +25,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
   }
 
   Future<void> _load() async {
-    final group = await GroupService.getCurrentGroup();
+    // refreshCurrentGroup recharge nom + admins depuis Firestore.
+    final group = await GroupService.refreshCurrentGroup();
     final user = await GroupService.getCurrentUser();
     List<GroupMember> members = [];
     if (group != null) {
@@ -76,6 +77,60 @@ class _GroupsScreenState extends State<GroupsScreen> {
     if (confirmed == true && _current != null) {
       await GroupService.removeMember(_current!.id, member.email);
       await _load();
+    }
+  }
+
+  Future<void> _rename() async {
+    if (_current == null) return;
+    final controller = TextEditingController(text: _current!.name);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Renommer le groupe'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(hintText: 'Nom du groupe'),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Annuler')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, controller.text),
+              child: const Text('Renommer')),
+        ],
+      ),
+    );
+    if (newName != null && newName.trim().isNotEmpty) {
+      try {
+        await GroupService.renameGroup(_current!.id, newName);
+        await _load();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text('$e')));
+        }
+      }
+    }
+  }
+
+  Future<void> _setAdmin(GroupMember member, bool makeAdmin) async {
+    if (_current == null) return;
+    try {
+      if (makeAdmin) {
+        await GroupService.addAdmin(_current!.id, member.email);
+      } else {
+        await GroupService.removeAdmin(_current!.id, member.email);
+      }
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
+      }
     }
   }
 
@@ -145,7 +200,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
 
   Widget _buildCurrentGroup() {
     final group = _current!;
-    final isAdmin = _user?.email == group.createdByEmail;
+    final isAdmin = group.isAdmin(_user?.email);
 
     return ListView(
       padding: const EdgeInsets.all(24),
@@ -167,12 +222,25 @@ class _GroupsScreenState extends State<GroupsScreen> {
                       letterSpacing: 2,
                       fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              Text(group.name,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900)),
-              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(group.name,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900)),
+                  ),
+                  if (isAdmin)
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined,
+                          color: Color(0xFFFF8A3D), size: 22),
+                      tooltip: 'Renommer le groupe',
+                      onPressed: _rename,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   const Text('Code : ',
@@ -212,23 +280,31 @@ class _GroupsScreenState extends State<GroupsScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        ..._members.map(
-          (m) => ListTile(
+        ..._members.map((m) {
+          final mIsAdmin = group.isAdmin(m.email);
+          final mIsCreator = m.email == group.createdByEmail;
+          return ListTile(
             contentPadding: EdgeInsets.zero,
             leading: CircleAvatar(
-              backgroundColor: m.email == group.createdByEmail
+              backgroundColor: mIsAdmin
                   ? const Color(0xFFFF8A3D)
                   : const Color(0xFFFFD9C2),
               child: Text(
                 m.username.isNotEmpty ? m.username[0].toUpperCase() : '?',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold),
               ),
             ),
             title: Row(
               children: [
-                Text(m.username,
-                    style: const TextStyle(color: Color(0xFF3D1A08), fontWeight: FontWeight.w600)),
-                if (m.email == group.createdByEmail) ...[
+                Flexible(
+                  child: Text(m.username,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Color(0xFF3D1A08),
+                          fontWeight: FontWeight.w600)),
+                ),
+                if (mIsAdmin) ...[
                   const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -237,8 +313,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
                       color: const Color(0xFFFFE8D6),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Text('admin',
-                        style: TextStyle(
+                    child: Text(mIsCreator ? 'créateur' : 'admin',
+                        style: const TextStyle(
                             color: Color(0xFFFF8A3D),
                             fontSize: 10,
                             fontWeight: FontWeight.bold)),
@@ -248,25 +324,51 @@ class _GroupsScreenState extends State<GroupsScreen> {
             ),
             subtitle: Text(m.email,
                 style: const TextStyle(color: Color(0xFF9A6B50), fontSize: 12)),
-            trailing: m.email == _user?.email
-                ? const Text('toi',
-                    style: TextStyle(color: Color(0xFF9A6B50), fontSize: 12))
-                : isAdmin && m.email != group.createdByEmail
-                    ? IconButton(
-                        icon: const Icon(Icons.remove_circle_outline,
-                            color: Colors.redAccent, size: 22),
-                        tooltip: 'Supprimer du groupe',
-                        onPressed: () => _removeMember(m),
-                      )
-                    : null,
-          ),
-        ),
+            trailing: _memberTrailing(group, m, isAdmin, mIsAdmin, mIsCreator),
+          );
+        }),
         const SizedBox(height: 24),
         TextButton(
           onPressed: _leave,
           child: const Text('Quitter le groupe',
               style: TextStyle(color: Colors.redAccent)),
         ),
+      ],
+    );
+  }
+
+  Widget? _memberTrailing(Group group, GroupMember m, bool viewerIsAdmin,
+      bool mIsAdmin, bool mIsCreator) {
+    if (m.email == _user?.email) {
+      return const Text('toi',
+          style: TextStyle(color: Color(0xFF9A6B50), fontSize: 12));
+    }
+    // Seuls les admins agissent ; le créateur ne peut être ni rétrogradé ni exclu.
+    if (!viewerIsAdmin || mIsCreator) return null;
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert, color: Color(0xFF9A6B50)),
+      onSelected: (value) {
+        switch (value) {
+          case 'promote':
+            _setAdmin(m, true);
+            break;
+          case 'demote':
+            _setAdmin(m, false);
+            break;
+          case 'remove':
+            _removeMember(m);
+            break;
+        }
+      },
+      itemBuilder: (_) => [
+        if (!mIsAdmin)
+          const PopupMenuItem(value: 'promote', child: Text('Rendre admin')),
+        if (mIsAdmin)
+          const PopupMenuItem(value: 'demote', child: Text('Retirer admin')),
+        const PopupMenuItem(
+            value: 'remove',
+            child: Text('Supprimer du groupe',
+                style: TextStyle(color: Colors.redAccent))),
       ],
     );
   }

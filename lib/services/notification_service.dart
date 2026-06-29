@@ -101,6 +101,18 @@ class NotificationService {
 
     await _plugin.cancelAll();
 
+    // Les notifications sont liées au groupe : sans groupe courant, on
+    // n'en planifie aucune (corrige les notifs fantômes après un départ).
+    final group = await GroupService.getCurrentGroup();
+    if (group == null) return;
+
+    // Durée du compte à rebours de la notif = temps choisi dans les
+    // paramètres (s'il est activé), sinon 2 minutes par défaut.
+    final countdownEnabled = prefs.getBool('countdown_enabled') ?? false;
+    final countdownSeconds = prefs.getInt('countdown_seconds') ?? 15;
+    final durationSeconds =
+        (countdownEnabled && countdownSeconds > 0) ? countdownSeconds : 120;
+
     // Prefer group member names, fall back to manually saved names
     List<String> names = await GroupService.getCachedMemberNames();
     if (names.isEmpty) names = await NamesService.getNames();
@@ -135,7 +147,7 @@ class NotificationService {
         );
         if (scheduled.isAfter(now)) {
           final name = names[random.nextInt(names.length)];
-          await _schedule(id++, scheduled, name);
+          await _schedule(id++, scheduled, name, durationSeconds);
         }
       }
     }
@@ -147,17 +159,19 @@ class NotificationService {
     int id,
     DateTime scheduledTime,
     String personName,
+    int durationSeconds,
   ) async {
     final tzTime = tz.TZDateTime.from(scheduledTime, tz.local);
 
     // Compte à rebours façon BeReal : la notif affiche un chrono qui descend
-    // depuis 2 minutes, rendu nativement par Android.
-    final deadline = scheduledTime.add(const Duration(minutes: 2));
+    // depuis la durée choisie, rendu nativement par Android. Le titre montre
+    // le prénom et le chrono natif affiche le temps à côté (« nom - time »).
+    final deadline = scheduledTime.add(Duration(seconds: durationSeconds));
 
     await _plugin.zonedSchedule(
       id,
-      '📸 Prends vite ta photo avec $personName !',
-      'Tu as 2 minutes — dépêche-toi !',
+      '📸 $personName',
+      'Prends vite la photo — il te reste ${_fmtDuration(durationSeconds)} !',
       tzTime,
       NotificationDetails(
         android: AndroidNotificationDetails(
@@ -195,6 +209,14 @@ class NotificationService {
       // (compatible Play Store) et reste fidèle à l'esprit « spontané ».
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
     );
+  }
+
+  /// Formate une durée en secondes : « 45 s », « 2 min », « 1 min 30 ».
+  static String _fmtDuration(int seconds) {
+    if (seconds < 60) return '$seconds s';
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return s == 0 ? '$m min' : '$m min $s';
   }
 
   /// Sends an immediate test notification with a random name.
