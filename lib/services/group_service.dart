@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/group.dart';
+import 'notification_service.dart';
 
 /// Exception métier renvoyée au formulaire pour affichage utilisateur.
 class GroupException implements Exception {
@@ -187,6 +188,11 @@ class GroupService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_currentGroupKey);
     await prefs.remove(_memberNamesKey);
+
+    // Annule les notifications programmées avec les noms de l'ancien groupe,
+    // puis replanifie (sur les prénoms manuels s'il y en a, sinon rien).
+    await NotificationService.cancelAll();
+    await NotificationService.scheduleRandom();
   }
 
   static Future<void> cacheMemberNames(List<String> names) async {
