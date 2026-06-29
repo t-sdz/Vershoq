@@ -65,18 +65,36 @@ class _LandingScreenState extends State<LandingScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const SizedBox(height: 48),
+                          const SizedBox(height: 40),
 
                           // Logo
+                          Container(
+                            width: 96,
+                            height: 96,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(28),
+                              boxShadow: VTheme.glowSolar,
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(28),
+                              child: Image.asset(
+                                'assets/icon/icon.png',
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Nom
                           ShaderMask(
                             shaderCallback: (b) => VTheme.solarGradient.createShader(b),
-                            child: const Text(
+                            child: Text(
                               'Vershoq',
-                              style: TextStyle(
+                              style: VTheme.grotesk(
                                 color: Colors.white,
-                                fontSize: 64,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -2.5,
+                                fontSize: 56,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -2,
                                 height: 1,
                               ),
                             ),
