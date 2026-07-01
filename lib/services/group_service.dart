@@ -15,10 +15,19 @@ class GroupException implements Exception {
   String toString() => message;
 }
 
+/// Un groupe rejoint par l'utilisateur, avec ses propres identifiants dans
+/// ce groupe.
+class JoinedGroup {
+  final Group group;
+  final GroupMember member;
+  const JoinedGroup(this.group, this.member);
+}
+
 class GroupService {
   static const _currentGroupKey = 'vershoq_current_group';
   static const _currentUserKey = 'vershoq_current_user';
   static const _memberNamesKey = 'vershoq_member_names';
+  static const _joinedGroupsKey = 'vershoq_joined_groups';
 
   // Caractères sans ambiguïté (pas de O/0, I/1)
   static const _codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -225,17 +234,91 @@ class GroupService {
   }
 
   // ---------------------------------------------------------------------------
+  // Groupes rejoints (multi-groupes) + groupe actif
+  // ---------------------------------------------------------------------------
+
+  /// Liste des groupes rejoints. Migre automatiquement l'ancien format
+  /// (groupe unique) vers la liste au premier accès.
+  static Future<List<JoinedGroup>> getJoinedGroups() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_joinedGroupsKey);
+    final list = <JoinedGroup>[];
+    if (raw != null) {
+      try {
+        for (final e in jsonDecode(raw) as List) {
+          final m = e as Map<String, dynamic>;
+          list.add(JoinedGroup(
+            Group.fromJson(m['group'] as Map<String, dynamic>),
+            GroupMember.fromMap(m['member'] as Map<String, dynamic>),
+          ));
+        }
+      } catch (_) {}
+    }
+    if (list.isEmpty) {
+      // Migration depuis l'ancien format (un seul groupe).
+      final g = await getCurrentGroup();
+      final u = await getCurrentUser();
+      if (g != null && u != null) {
+        list.add(JoinedGroup(g, u));
+        await _writeJoined(list);
+      }
+    }
+    return list;
+  }
+
+  static Future<void> _writeJoined(List<JoinedGroup> list) async {
+    final prefs = await SharedPreferences.getInstance();
+    final arr = list
+        .map((j) => {'group': j.group.toJson(), 'member': j.member.toMap()})
+        .toList();
+    await prefs.setString(_joinedGroupsKey, jsonEncode(arr));
+  }
+
+  /// Change le groupe actif (celui affiché dans le feed) et replanifie les
+  /// notifications pour ce groupe.
+  static Future<void> setActiveGroup(String groupId) async {
+    final list = await getJoinedGroups();
+    JoinedGroup? target;
+    for (final j in list) {
+      if (j.group.id == groupId) target = j;
+    }
+    if (target == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_currentGroupKey, jsonEncode(target.group.toJson()));
+    await prefs.setString(_currentUserKey, jsonEncode(target.member.toMap()));
+    await prefs.remove(_memberNamesKey);
+    await NotificationService.cancelAll();
+    await NotificationService.scheduleRandom();
+  }
+
+  // ---------------------------------------------------------------------------
   // Persistance locale du groupe courant
   // ---------------------------------------------------------------------------
   static Future<void> _saveLocal(Group group, GroupMember member) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_currentGroupKey, jsonEncode(group.toJson()));
     await prefs.setString(_currentUserKey, jsonEncode(member.toMap()));
+    // Ajoute (ou met à jour) dans la liste des groupes rejoints.
+    final list = await getJoinedGroups();
+    final idx = list.indexWhere((j) => j.group.id == group.id);
+    if (idx >= 0) {
+      list[idx] = JoinedGroup(group, member);
+    } else {
+      list.add(JoinedGroup(group, member));
+    }
+    await _writeJoined(list);
   }
 
   static Future<void> _saveGroupLocal(Group group) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_currentGroupKey, jsonEncode(group.toJson()));
+    // Met à jour l'entrée correspondante dans la liste des groupes rejoints.
+    final list = await getJoinedGroups();
+    final idx = list.indexWhere((j) => j.group.id == group.id);
+    if (idx >= 0) {
+      list[idx] = JoinedGroup(group, list[idx].member);
+      await _writeJoined(list);
+    }
   }
 
   static Future<Group?> getCurrentGroup() async {
@@ -260,13 +343,34 @@ class GroupService {
     }
   }
 
-  static Future<void> leaveGroup() async {
+  /// Quitte un groupe. Sans argument, quitte le groupe actif. S'il restait
+  /// d'autres groupes, bascule automatiquement sur le premier.
+  static Future<void> leaveGroup([String? groupId]) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_currentGroupKey);
-    await prefs.remove(_memberNamesKey);
+    final active = await getCurrentGroup();
+    final targetId = groupId ?? active?.id;
+    if (targetId == null) return;
 
-    // Annule les notifications programmées avec les noms de l'ancien groupe,
-    // puis replanifie (sur les prénoms manuels s'il y en a, sinon rien).
+    var list = await getJoinedGroups();
+    list = list.where((j) => j.group.id != targetId).toList();
+    await _writeJoined(list);
+
+    // Si on a quitté le groupe actif, on bascule sur un autre (ou aucun).
+    if (active == null || active.id == targetId) {
+      if (list.isNotEmpty) {
+        await prefs.setString(
+            _currentGroupKey, jsonEncode(list.first.group.toJson()));
+        await prefs.setString(
+            _currentUserKey, jsonEncode(list.first.member.toMap()));
+      } else {
+        await prefs.remove(_currentGroupKey);
+        await prefs.remove(_currentUserKey);
+      }
+      await prefs.remove(_memberNamesKey);
+    }
+
+    // Annule les notifications de l'ancien groupe et replanifie pour le
+    // nouveau groupe actif (ou rien s'il n'y en a plus).
     await NotificationService.cancelAll();
     await NotificationService.scheduleRandom();
   }

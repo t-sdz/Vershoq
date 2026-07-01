@@ -14,8 +14,10 @@ import '../services/notification_service.dart';
 import '../services/storage_service.dart';
 import '../services/theme_service.dart';
 import '../theme/v_theme.dart';
+import 'create_group_screen.dart';
 import 'gallery_screen.dart';
 import 'groups_screen.dart';
+import 'join_group_screen.dart';
 import 'landing_screen.dart';
 import 'settings_screen.dart';
 
@@ -30,6 +32,7 @@ class _FeedScreenState extends State<FeedScreen> {
   Group? _group;
   GroupMember? _user;
   List<GroupMember> _members = [];
+  List<JoinedGroup> _joined = [];
   bool _loading = true;
 
   @override
@@ -41,6 +44,7 @@ class _FeedScreenState extends State<FeedScreen> {
   Future<void> _load() async {
     final group = await GroupService.getCurrentGroup();
     final user  = await GroupService.getCurrentUser();
+    final joined = await GroupService.getJoinedGroups();
     List<GroupMember> members = [];
     if (group != null) {
       try {
@@ -54,9 +58,17 @@ class _FeedScreenState extends State<FeedScreen> {
         _group   = group;
         _user    = user;
         _members = members;
+        _joined  = joined;
         _loading = false;
       });
     }
+  }
+
+  Future<void> _switchGroup(String groupId) async {
+    if (_group?.id == groupId) return;
+    setState(() => _loading = true);
+    await GroupService.setActiveGroup(groupId);
+    await _load();
   }
 
   @override
@@ -198,10 +210,69 @@ class _FeedScreenState extends State<FeedScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              const Divider(indent: 16, endIndent: 16, color: Color(0xFFFFE0C8)),
+              Divider(indent: 16, endIndent: 16, color: VTheme.hairline),
+            ],
+
+            // Sélecteur de groupes (multi-groupes)
+            if (_joined.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 6),
+                child: Text('MES GROUPES',
+                    style: TextStyle(
+                        color: VTheme.warmMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 2)),
+              ),
+              ..._joined.map((j) {
+                final active = j.group.id == _group?.id;
+                return ListTile(
+                  dense: true,
+                  leading: Icon(
+                      active
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                      color: active ? VTheme.orange : VTheme.warmMuted,
+                      size: 20),
+                  title: Text(j.group.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          color: VTheme.warmDark,
+                          fontWeight:
+                              active ? FontWeight.w700 : FontWeight.w500)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _switchGroup(j.group.id);
+                  },
+                );
+              }),
+              const SizedBox(height: 4),
+              Divider(indent: 16, endIndent: 16, color: VTheme.hairline),
             ],
 
             // Nav items
+            _DrawerTile(
+              icon: Icons.group_add_outlined,
+              label: 'Rejoindre un groupe',
+              onTap: () async {
+                Navigator.pop(context);
+                await Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const JoinGroupScreen()));
+                _load();
+              },
+            ),
+            _DrawerTile(
+              icon: Icons.add_circle_outline,
+              label: 'Créer un groupe',
+              onTap: () async {
+                Navigator.pop(context);
+                await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const CreateGroupScreen()));
+                _load();
+              },
+            ),
             _DrawerTile(
               icon: Icons.photo_library_outlined,
               label: 'Galerie du groupe',
@@ -251,10 +322,11 @@ class _FeedScreenState extends State<FeedScreen> {
                 color: VTheme.coral,
                 onTap: () async {
                   Navigator.pop(context);
+                  final leftName = _group?.name ?? '';
                   final ok = await showDialog<bool>(
                     context: context,
                     builder: (ctx) => AlertDialog(
-                      title: const Text('Quitter le groupe ?'),
+                      title: Text('Quitter « $leftName » ?'),
                       content: const Text(
                           'Tu devras rejoindre avec un nouveau code.'),
                       actions: [
@@ -270,10 +342,18 @@ class _FeedScreenState extends State<FeedScreen> {
                   );
                   if (ok == true && mounted) {
                     await GroupService.leaveGroup();
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => const LandingScreen()),
-                      (_) => false,
-                    );
+                    final remaining = await GroupService.getJoinedGroups();
+                    if (!mounted) return;
+                    if (remaining.isNotEmpty) {
+                      // Il reste d'autres groupes : on recharge le feed sur le
+                      // nouveau groupe actif.
+                      _load();
+                    } else {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(builder: (_) => const LandingScreen()),
+                        (_) => false,
+                      );
+                    }
                   }
                 },
               ),
