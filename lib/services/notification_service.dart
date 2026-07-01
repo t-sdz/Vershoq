@@ -106,12 +106,11 @@ class NotificationService {
     final group = await GroupService.getCurrentGroup();
     if (group == null) return;
 
-    // Durée du compte à rebours de la notif = temps choisi dans les
-    // paramètres (s'il est activé), sinon 2 minutes par défaut.
-    final countdownEnabled = prefs.getBool('countdown_enabled') ?? false;
+    // Durée du compte à rebours de la notif = temps choisi pour prendre la
+    // photo (paramètre « Compte à rebours »). Toujours cohérent avec la
+    // caméra ; 2 min par défaut si la valeur est à 0.
     final countdownSeconds = prefs.getInt('countdown_seconds') ?? 15;
-    final durationSeconds =
-        (countdownEnabled && countdownSeconds > 0) ? countdownSeconds : 120;
+    final durationSeconds = countdownSeconds > 0 ? countdownSeconds : 120;
 
     // Prefer group member names, fall back to manually saved names
     List<String> names = await GroupService.getCachedMemberNames();
@@ -188,6 +187,10 @@ class NotificationService {
           chronometerCountDown: true,
           when: deadline.millisecondsSinceEpoch,
           showWhen: true,
+          // La notif disparaît toute seule à la fin du compte à rebours
+          // (si l'utilisateur la loupe, elle ne reste pas indéfiniment).
+          timeoutAfter: durationSeconds * 1000,
+          autoCancel: true,
           // Bouton interactif : ouvre directement la caméra
           actions: <AndroidNotificationAction>[
             AndroidNotificationAction(
