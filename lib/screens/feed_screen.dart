@@ -40,7 +40,8 @@ class _FeedScreenState extends State<FeedScreen> {
   }
 
   Future<void> _load() async {
-    final group = await GroupService.getCurrentGroup();
+    // refreshCurrentGroup détecte un groupe supprimé et bascule automatiquement.
+    final group = await GroupService.refreshCurrentGroup();
     final user  = await GroupService.getCurrentUser();
     final joined = await GroupService.getJoinedGroups();
     List<GroupMember> members = [];

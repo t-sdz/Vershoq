@@ -241,8 +241,13 @@ class GroupService {
         await _saveGroupLocal(fresh);
         return fresh;
       }
-    } catch (_) {}
-    return local;
+      // Le groupe n'existe plus (supprimé) : on le retire et on bascule.
+      await leaveGroup(local.id);
+      return getCurrentGroup();
+    } catch (_) {
+      // Erreur réseau : on garde la version locale sans rien casser.
+      return local;
+    }
   }
 
   // ---------------------------------------------------------------------------
