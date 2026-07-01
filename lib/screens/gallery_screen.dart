@@ -301,7 +301,7 @@ class _GroupDetailScreen extends StatelessWidget {
     try {
       if (!await Gal.hasAccess()) await Gal.requestAccess();
       final bytes = base64Decode(photo.imageBase64);
-      await Gal.putImageBytes(bytes, album: 'Vershoq');
+      await Gal.putImageBytes(bytes, album: "Snap'It");
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Photo sauvegardée dans la galerie !')),
@@ -419,7 +419,7 @@ class _LocalDetailScreen extends StatelessWidget {
   Future<void> _download(BuildContext context) async {
     try {
       if (!await Gal.hasAccess()) await Gal.requestAccess();
-      await Gal.putImage(entry.localPath, album: 'Vershoq');
+      await Gal.putImage(entry.localPath, album: "Snap'It");
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Photo sauvegardée dans la galerie !')),

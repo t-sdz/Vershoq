@@ -131,7 +131,7 @@ class _GroupHomeScreenState extends State<GroupHomeScreen>
       floating: true,
       snap: true,
       title: Text(
-        _group?.name ?? 'Vershoq',
+        _group?.name ?? "Snap'It",
         style: TextStyle(
             fontWeight: FontWeight.w900,
             fontSize: 24,

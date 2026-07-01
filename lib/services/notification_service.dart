@@ -180,7 +180,7 @@ class NotificationService {
               'Notifications pour capturer des moments spontanés',
           importance: Importance.max,
           priority: Priority.high,
-          ticker: 'Vershoq',
+          ticker: "Snap'It",
           category: AndroidNotificationCategory.reminder,
           // Chrono natif qui décompte jusqu'à la deadline (effet BeReal)
           usesChronometer: true,

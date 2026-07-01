@@ -67,7 +67,7 @@ class VershoqApp extends StatelessWidget {
     return ValueListenableBuilder<int>(
       valueListenable: ThemeService.revision,
       builder: (context, _, __) => MaterialApp(
-        title: 'Vershoq',
+        title: "Snap'It",
         debugShowCheckedModeBanner: false,
         navigatorKey: navigatorKey,
         theme: _buildTheme(),

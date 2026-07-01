@@ -68,7 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 16),
             ShaderMask(
               shaderCallback: (b) => VTheme.solarGradient.createShader(b),
-              child: Text('Vershoq',
+              child: Text("Snap'It",
                   style: VTheme.grotesk(
                       color: Colors.white,
                       fontSize: 40,

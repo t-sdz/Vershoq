@@ -76,7 +76,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         slivers: [
           SliverAppBar.large(
             title: const Text(
-              'Vershoq',
+              "Snap'It",
               style: TextStyle(fontWeight: FontWeight.w900, fontSize: 32),
             ),
             actions: [

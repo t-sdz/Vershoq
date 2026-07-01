@@ -62,7 +62,7 @@ class _SignupScreenState extends State<SignupScreen> {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          Text('Bienvenue sur Vershoq',
+          Text("Bienvenue sur Snap'It",
               style: VTheme.grotesk(
                   color: VTheme.warmDark,
                   fontSize: 26,

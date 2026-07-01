@@ -95,7 +95,7 @@ class _FeedScreenState extends State<FeedScreen> {
       title: ShaderMask(
         shaderCallback: (b) => VTheme.solarGradient.createShader(b),
         child: Text(
-          'Vershoq',
+          "Snap'It",
           style: VTheme.grotesk(
               color: Colors.white,
               fontSize: 26,
@@ -148,7 +148,7 @@ class _FeedScreenState extends State<FeedScreen> {
                   _groupAvatar(),
                   const SizedBox(height: 8),
                   Text(
-                    _group?.name ?? 'Vershoq',
+                    _group?.name ?? "Snap'It",
                     style: const TextStyle(
                         color: Colors.white,
                         fontSize: 22,
@@ -447,7 +447,7 @@ class _GroupPhotoPage extends StatelessWidget {
     try {
       if (!await Gal.hasAccess()) await Gal.requestAccess();
       final bytes = base64Decode(photo.imageBase64);
-      await Gal.putImageBytes(bytes, album: 'Vershoq');
+      await Gal.putImageBytes(bytes, album: "Snap'It");
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Photo sauvegardée !')),
@@ -686,7 +686,7 @@ class _LocalPhotoPage extends StatelessWidget {
   Future<void> _download(BuildContext context) async {
     try {
       if (!await Gal.hasAccess()) await Gal.requestAccess();
-      await Gal.putImage(entry.localPath, album: 'Vershoq');
+      await Gal.putImage(entry.localPath, album: "Snap'It");
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Photo sauvegardée !')),
@@ -878,7 +878,7 @@ class _EmptyFeed extends StatelessWidget {
                     fontSize: 20,
                     fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Text('Attends la notification Vershoq\npour capturer un moment !',
+            Text("Attends la notification Snap'It\npour capturer un moment !",
                 textAlign: TextAlign.center,
                 style: TextStyle(color: VTheme.warmMuted, fontSize: 14)),
             const SizedBox(height: 120),
