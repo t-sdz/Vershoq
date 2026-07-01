@@ -42,7 +42,8 @@ class StorageService {
   }
 
   /// Uploads the photo to the shared group gallery. Returns true on success.
-  static Future<bool> uploadToGroup(File file, String personName) async {
+  static Future<bool> uploadToGroup(File file, String personName,
+      {String? challenge}) async {
     try {
       final group = await GroupService.getCurrentGroup();
       final user = await GroupService.getCurrentUser();
@@ -53,6 +54,7 @@ class StorageService {
         personName: personName,
         uploaderUsername: user.username,
         uploaderEmail: user.email,
+        challenge: challenge,
       );
       return true;
     } catch (e) {

@@ -23,6 +23,7 @@ class GroupPhotoService {
     required String personName,
     required String uploaderUsername,
     required String uploaderEmail,
+    String? challenge,
   }) async {
     // Compress to max 720px wide, quality 60 → typically 30-80 KB
     final compressed = await FlutterImageCompress.compressWithFile(
@@ -43,6 +44,7 @@ class GroupPhotoService {
       'uploaderEmail': uploaderEmail,
       'imageBase64': base64str,
       'timestamp': DateTime.now().toIso8601String(),
+      if (challenge != null && challenge.isNotEmpty) 'challenge': challenge,
     });
   }
 

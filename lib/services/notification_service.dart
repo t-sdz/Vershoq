@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
+import 'challenge_service.dart';
 import 'group_service.dart';
 import 'names_service.dart';
 
@@ -112,6 +113,10 @@ class NotificationService {
     final countdownSeconds = prefs.getInt('countdown_seconds') ?? 15;
     final durationSeconds = countdownSeconds > 0 ? countdownSeconds : 120;
 
+    // Mode Défis : les notifications proposent un défi au lieu d'un simple
+    // rappel « prends une photo ».
+    final challengeMode = await ChallengeService.isChallengeMode();
+
     // Prefer group member names, fall back to manually saved names
     List<String> names = await GroupService.getCachedMemberNames();
     if (names.isEmpty) names = await NamesService.getNames();
@@ -146,7 +151,10 @@ class NotificationService {
         );
         if (scheduled.isAfter(now)) {
           final name = names[random.nextInt(names.length)];
-          await _schedule(id++, scheduled, name, durationSeconds);
+          final challenge = challengeMode
+              ? ChallengeService.randomChallenge(name, random)
+              : null;
+          await _schedule(id++, scheduled, name, durationSeconds, challenge);
         }
       }
     }
@@ -159,8 +167,17 @@ class NotificationService {
     DateTime scheduledTime,
     String personName,
     int durationSeconds,
+    String? challenge,
   ) async {
     final tzTime = tz.TZDateTime.from(scheduledTime, tz.local);
+
+    final title = challenge != null ? '🎯 Défi Vershoq' : '📸 $personName';
+    final body = challenge ??
+        'Prends vite la photo — il te reste ${_fmtDuration(durationSeconds)} !';
+    // Le payload transporte le prénom et (en mode Défis) le texte du défi,
+    // séparés par un caractère de contrôle, pour les afficher sur la caméra.
+    final payload =
+        challenge != null ? '$personName$challenge' : personName;
 
     // Compte à rebours façon BeReal : la notif affiche un chrono qui descend
     // depuis la durée choisie, rendu nativement par Android. Le titre montre
@@ -169,8 +186,8 @@ class NotificationService {
 
     await _plugin.zonedSchedule(
       id,
-      '📸 $personName',
-      'Prends vite la photo — il te reste ${_fmtDuration(durationSeconds)} !',
+      title,
+      body,
       tzTime,
       NotificationDetails(
         android: AndroidNotificationDetails(
@@ -182,6 +199,10 @@ class NotificationService {
           priority: Priority.high,
           ticker: 'Vershoq',
           category: AndroidNotificationCategory.reminder,
+          // Défis : le texte peut être long → affichage multi-lignes.
+          styleInformation: challenge != null
+              ? BigTextStyleInformation(body)
+              : null,
           // Chrono natif qui décompte jusqu'à la deadline (effet BeReal)
           usesChronometer: true,
           chronometerCountDown: true,
@@ -207,7 +228,7 @@ class NotificationService {
           categoryIdentifier: _iosCategoryId,
         ),
       ),
-      payload: personName,
+      payload: payload,
       // Planification inexacte : ne nécessite aucune permission spéciale
       // (compatible Play Store) et reste fidèle à l'esprit « spontané ».
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
