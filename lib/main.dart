@@ -14,15 +14,6 @@ import 'theme/v_theme.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-/// Construit l'écran caméra depuis le payload d'une notification.
-/// Format : « prénom » ou « prénomtexte du défi » (mode Défis).
-CameraScreen cameraFromPayload(String payload) {
-  final parts = payload.split('');
-  return CameraScreen(
-    personName: parts.first,
-    challenge: parts.length > 1 && parts[1].isNotEmpty ? parts[1] : null,
-  );
-}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,7 +41,7 @@ Future<void> main() async {
     onTap: (payload) {
       navigatorKey.currentState?.push(
         MaterialPageRoute(
-          builder: (_) => cameraFromPayload(payload),
+          builder: (_) => CameraScreen(personName: payload),
         ),
       );
     },
@@ -81,7 +72,7 @@ class VershoqApp extends StatelessWidget {
         navigatorKey: navigatorKey,
         theme: _buildTheme(),
         home: initialPersonName != null && initialPersonName!.isNotEmpty
-            ? cameraFromPayload(initialPersonName!)
+            ? CameraScreen(personName: initialPersonName!)
             : StreamBuilder<User?>(
                 stream: FirebaseAuth.instance.authStateChanges(),
                 builder: (context, snap) {

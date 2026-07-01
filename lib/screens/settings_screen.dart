@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../services/challenge_service.dart';
 import '../services/names_service.dart';
 import '../services/notification_service.dart';
 import '../services/theme_service.dart';
@@ -29,9 +28,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _countdownEnabled = false;
   int _countdownSeconds = 15;
 
-  // Mode
-  bool _challengeMode = false;
-
   bool _loading = true;
 
   @override
@@ -43,11 +39,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final names = await NamesService.getNames();
-    final challengeMode = await ChallengeService.isChallengeMode();
     if (mounted) {
       setState(() {
         _names = names;
-        _challengeMode = challengeMode;
         _timeLimitEnabled = prefs.getBool('notif_time_limit_enabled') ?? true;
         _startHour = prefs.getInt('notif_start_hour') ?? 9;
         _endHour = prefs.getInt('notif_end_hour') ?? 21;
@@ -149,10 +143,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _SectionTitle('Mode'),
-          const SizedBox(height: 8),
-          _buildModeCard(),
-          const SizedBox(height: 32),
           _SectionTitle('Apparence'),
           const SizedBox(height: 8),
           _buildAppearanceCard(),
@@ -199,46 +189,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 32),
         ],
-      ),
-    );
-  }
-
-  Widget _buildModeCard() {
-    return Card(
-      color: VTheme.surface,
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        child: SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          secondary: Icon(
-              _challengeMode ? Icons.emoji_events_outlined : Icons.bolt,
-              color: VTheme.orange),
-          title: Text('Mode Défis 🎯',
-              style: TextStyle(color: VTheme.warmDark)),
-          subtitle: Text(
-            _challengeMode
-                ? 'Les notifs proposent des défis avec un membre + le chrono'
-                : 'Mode spontané : capture un membre au hasard',
-            style: TextStyle(color: VTheme.warmMuted, fontSize: 12),
-          ),
-          value: _challengeMode,
-          activeColor: VTheme.orange,
-          onChanged: (v) async {
-            setState(() => _challengeMode = v);
-            await ChallengeService.setChallengeMode(v);
-            await NotificationService.cancelAll();
-            await NotificationService.scheduleRandom();
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                    content: Text(
-                        v ? 'Mode Défis activé 🎯' : 'Mode spontané activé')),
-              );
-            }
-          },
-        ),
       ),
     );
   }

@@ -564,16 +564,6 @@ class _GroupPhotoPage extends StatelessWidget {
                           ],
                         ),
                       ),
-                      if (photo.challenge != null) ...[
-                        const SizedBox(height: 3),
-                        Text(
-                          '🎯 ${photo.challenge}',
-                          style: TextStyle(
-                              color: VTheme.orange,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600),
-                        ),
-                      ],
                       const SizedBox(height: 2),
                       Text(
                         _fmt(photo.timestamp),

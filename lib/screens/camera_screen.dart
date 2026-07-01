@@ -15,10 +15,7 @@ import 'result_screen.dart';
 class CameraScreen extends StatefulWidget {
   final String personName;
 
-  /// Texte du défi (mode Défis), null en mode spontané.
-  final String? challenge;
-
-  const CameraScreen({super.key, required this.personName, this.challenge});
+  const CameraScreen({super.key, required this.personName});
 
   @override
   State<CameraScreen> createState() => _CameraScreenState();
@@ -190,7 +187,6 @@ class _CameraScreenState extends State<CameraScreen>
       final uploaded = await StorageService.uploadToGroup(
         File(entry.localPath),
         widget.personName,
-        challenge: widget.challenge,
       );
 
       if (mounted) {
@@ -273,7 +269,6 @@ class _CameraScreenState extends State<CameraScreen>
           right: 0,
           child: _Header(
             personName: widget.personName,
-            challenge: widget.challenge,
             countdownEnabled: _countdownEnabled,
             remaining: _remaining,
           ),
@@ -327,13 +322,11 @@ class _CameraScreenState extends State<CameraScreen>
 
 class _Header extends StatelessWidget {
   final String personName;
-  final String? challenge;
   final bool countdownEnabled;
   final int remaining;
 
   const _Header({
     required this.personName,
-    required this.challenge,
     required this.countdownEnabled,
     required this.remaining,
   });
@@ -341,7 +334,6 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final urgent = remaining <= 3;
-    final isChallenge = challenge != null && challenge!.isNotEmpty;
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -354,9 +346,9 @@ class _Header extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Column(
         children: [
-          Text(
-            isChallenge ? '🎯 DÉFI' : 'PRENDS VITE EN PHOTO',
-            style: const TextStyle(
+          const Text(
+            'PRENDS VITE EN PHOTO',
+            style: TextStyle(
               color: Colors.white60,
               fontSize: 10,
               letterSpacing: 2,
@@ -365,14 +357,13 @@ class _Header extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            isChallenge ? challenge! : personName,
+            personName,
             textAlign: TextAlign.center,
             style: VTheme.grotesk(
               color: Colors.white,
-              fontSize: isChallenge ? 22 : 34,
+              fontSize: 34,
               fontWeight: FontWeight.w800,
-              letterSpacing: isChallenge ? -0.3 : -1,
-              height: isChallenge ? 1.15 : null,
+              letterSpacing: -1,
               shadows: const [Shadow(blurRadius: 12, color: Colors.black87)],
             ),
           ),
