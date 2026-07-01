@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/group_service.dart';
+import '../services/user_profile_service.dart';
 import '../theme/v_theme.dart';
 import '../widgets/form_widgets.dart';
 import 'feed_screen.dart';
@@ -13,8 +14,6 @@ class JoinGroupScreen extends StatefulWidget {
 }
 
 class _JoinGroupScreenState extends State<JoinGroupScreen> {
-  final _userCtrl  = TextEditingController();
-  final _emailCtrl = TextEditingController();
   final _codeCtrl  = TextEditingController();
 
   bool _submitting = false;
@@ -22,8 +21,6 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
 
   @override
   void dispose() {
-    _userCtrl.dispose();
-    _emailCtrl.dispose();
     _codeCtrl.dispose();
     super.dispose();
   }
@@ -31,10 +28,12 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
   Future<void> _submit() async {
     setState(() { _submitting = true; _error = null; });
     try {
+      final profile = await UserProfileService.current();
+      if (profile == null) throw GroupException('Profil introuvable, reconnecte-toi.');
       await GroupService.joinGroup(
         code: _codeCtrl.text,
-        username: _userCtrl.text,
-        email: _emailCtrl.text,
+        username: profile.username,
+        email: profile.email,
       );
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
@@ -69,22 +68,6 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
           Text('Entre le code que ton ami t\'a partagé.',
               style: TextStyle(color: VTheme.warmMuted, fontSize: 14)),
           const SizedBox(height: 28),
-          AppTextField(
-            controller: _userCtrl,
-            label: 'Nom d\'utilisateur',
-            hint: 'Ton pseudo',
-            icon: Icons.person_outline,
-            capitalization: TextCapitalization.words,
-          ),
-          const SizedBox(height: 16),
-          AppTextField(
-            controller: _emailCtrl,
-            label: 'Email',
-            hint: 'toi@exemple.com',
-            icon: Icons.alternate_email,
-            keyboardType: TextInputType.emailAddress,
-          ),
-          const SizedBox(height: 16),
           AppTextField(
             controller: _codeCtrl,
             label: 'Code du groupe',

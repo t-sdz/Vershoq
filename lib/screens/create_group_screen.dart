@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../models/group.dart';
 import '../services/group_service.dart';
+import '../services/user_profile_service.dart';
 import '../theme/v_theme.dart';
 import '../widgets/form_widgets.dart';
 import 'feed_screen.dart';
@@ -16,8 +17,6 @@ class CreateGroupScreen extends StatefulWidget {
 
 class _CreateGroupScreenState extends State<CreateGroupScreen> {
   final _nameCtrl  = TextEditingController();
-  final _userCtrl  = TextEditingController();
-  final _emailCtrl = TextEditingController();
 
   bool _submitting = false;
   String? _error;
@@ -26,18 +25,18 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _userCtrl.dispose();
-    _emailCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     setState(() { _submitting = true; _error = null; });
     try {
+      final profile = await UserProfileService.current();
+      if (profile == null) throw GroupException('Profil introuvable, reconnecte-toi.');
       final group = await GroupService.createGroup(
         name: _nameCtrl.text,
-        username: _userCtrl.text,
-        email: _emailCtrl.text,
+        username: profile.username,
+        email: profile.email,
       );
       if (mounted) setState(() => _created = group);
     } on GroupException catch (e) {
@@ -74,22 +73,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           hint: 'Les potes du lycée',
           icon: Icons.groups_outlined,
           capitalization: TextCapitalization.words,
-        ),
-        const SizedBox(height: 16),
-        AppTextField(
-          controller: _userCtrl,
-          label: 'Nom d\'utilisateur',
-          hint: 'Ton pseudo',
-          icon: Icons.person_outline,
-          capitalization: TextCapitalization.words,
-        ),
-        const SizedBox(height: 16),
-        AppTextField(
-          controller: _emailCtrl,
-          label: 'Email',
-          hint: 'toi@exemple.com',
-          icon: Icons.alternate_email,
-          keyboardType: TextInputType.emailAddress,
         ),
         if (_error != null) ...[
           const SizedBox(height: 16),

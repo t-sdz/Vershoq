@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
 
+import '../models/group.dart';
 import '../models/group_photo_entry.dart';
 import '../models/photo_entry.dart';
 import '../services/group_photo_service.dart';
@@ -17,7 +18,13 @@ class GalleryScreen extends StatefulWidget {
   /// Si vrai, n'affiche que les photos prises par l'utilisateur ou celles
   /// où il est identifié (le prénom à capturer correspond à son pseudo).
   final bool personalOnly;
-  const GalleryScreen({super.key, this.personalOnly = false});
+
+  /// Si vrai (avec personalOnly), agrège les photos personnelles de TOUS
+  /// les groupes rejoints, pas seulement le groupe actif.
+  final bool allGroups;
+
+  const GalleryScreen(
+      {super.key, this.personalOnly = false, this.allGroups = false});
 
   @override
   State<GalleryScreen> createState() => _GalleryScreenState();
@@ -71,9 +78,11 @@ class _GalleryScreenState extends State<GalleryScreen> {
         appBar: AppBar(title: Text(title)),
         body: _loading
             ? Center(child: CircularProgressIndicator(color: VTheme.orange))
-            : _groupId != null
-                ? _buildGroupGallery()
-                : _buildLocalGallery(),
+            : widget.allGroups
+                ? _buildAllGroupsGallery()
+                : _groupId != null
+                    ? _buildGroupGallery()
+                    : _buildLocalGallery(),
       ),
     );
   }
@@ -113,14 +122,63 @@ class _GalleryScreenState extends State<GalleryScreen> {
     );
   }
 
-  void _showGroupDetail(GroupPhotoEntry photo) {
+  void _showGroupDetail(GroupPhotoEntry photo, [String? groupId]) {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => _GroupDetailScreen(
         photo: photo,
         userEmail: _userEmail,
-        groupId: _groupId!,
+        groupId: groupId ?? _groupId!,
       ),
     ));
+  }
+
+  // ── All-groups personal gallery ─────────────────────────────────────────────
+
+  Widget _buildAllGroupsGallery() {
+    return FutureBuilder<List<MapEntry<String, GroupPhotoEntry>>>(
+      future: _fetchAllMyPhotos(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator(color: VTheme.orange));
+        }
+        final entries = snap.data ?? [];
+        if (entries.isEmpty) return _emptyState(personal: true);
+
+        return GridView.builder(
+          padding: const EdgeInsets.all(12),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+          ),
+          itemCount: entries.length,
+          itemBuilder: (_, i) => _GroupPhotoCard(
+            photo: entries[i].value,
+            onTap: () => _showGroupDetail(entries[i].value, entries[i].key),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<List<MapEntry<String, GroupPhotoEntry>>> _fetchAllMyPhotos() async {
+    final joined = await GroupService.getJoinedGroups();
+    final result = <MapEntry<String, GroupPhotoEntry>>[];
+    for (final j in joined) {
+      final photos = await GroupPhotoService.fetchGroupPhotos(j.group.id);
+      for (final p in photos) {
+        if (_isMineFor(p, j.member)) {
+          result.add(MapEntry(j.group.id, p));
+        }
+      }
+    }
+    result.sort((a, b) => b.value.timestamp.compareTo(a.value.timestamp));
+    return result;
+  }
+
+  bool _isMineFor(GroupPhotoEntry p, GroupMember member) {
+    return p.uploaderEmail == member.email ||
+        p.personName.trim().toLowerCase() == member.username.trim().toLowerCase();
   }
 
   // ── Local gallery ────────────────────────────────────────────────────────────

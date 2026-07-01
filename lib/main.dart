@@ -1,13 +1,13 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth, User;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'firebase_options.dart';
+import 'screens/account_screen.dart';
 import 'screens/camera_screen.dart';
-import 'screens/feed_screen.dart';
-import 'screens/landing_screen.dart';
+import 'screens/login_screen.dart';
 import 'services/notification_service.dart';
 import 'services/theme_service.dart';
 import 'theme/v_theme.dart';
@@ -39,19 +39,8 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-
-    // Connexion anonyme : invisible pour l'utilisateur (aucun compte à créer),
-    // mais elle donne à chaque appareil un identifiant Firebase. Cela permet
-    // aux règles Firestore d'exiger `request.auth != null` et donc de bloquer
-    // les accès depuis l'extérieur de l'app.
-    //
-    // ⚠️ Nécessite d'avoir activé le fournisseur « Anonyme » dans la console
-    // Firebase (Authentication > Sign-in method > Anonymous > Activer).
-    if (FirebaseAuth.instance.currentUser == null) {
-      await FirebaseAuth.instance.signInAnonymously();
-    }
   } catch (e) {
-    debugPrint('Firebase init/auth échouée (groupes indisponibles) : $e');
+    debugPrint('Firebase init échouée (groupes indisponibles) : $e');
   }
 
   // Charge le thème choisi par l'utilisateur (palette + polices).
@@ -93,7 +82,21 @@ class VershoqApp extends StatelessWidget {
         theme: _buildTheme(),
         home: initialPersonName != null && initialPersonName!.isNotEmpty
             ? cameraFromPayload(initialPersonName!)
-            : const LandingScreen(),
+            : StreamBuilder<User?>(
+                stream: FirebaseAuth.instance.authStateChanges(),
+                builder: (context, snap) {
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return Scaffold(
+                      backgroundColor: VTheme.bgWarm,
+                      body: Center(
+                          child: CircularProgressIndicator(color: VTheme.orange)),
+                    );
+                  }
+                  return snap.data != null
+                      ? const AccountScreen()
+                      : const LoginScreen();
+                },
+              ),
       ),
     );
   }

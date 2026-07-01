@@ -21,6 +21,15 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Profil utilisateur (nom, pseudo, email, photo base64) : chacun ne
+    // peut lire/écrire QUE son propre document.
+    match /users/{userId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow write: if signedIn() && request.auth.uid == userId
+        && (!('photoBase64' in request.resource.data)
+            || request.resource.data.photoBase64.size() < 400000);
+    }
+
     match /groups/{groupId} {
 
       allow read: if signedIn();

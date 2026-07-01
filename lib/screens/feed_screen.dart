@@ -14,11 +14,11 @@ import '../services/notification_service.dart';
 import '../services/storage_service.dart';
 import '../services/theme_service.dart';
 import '../theme/v_theme.dart';
+import 'account_screen.dart';
 import 'create_group_screen.dart';
 import 'gallery_screen.dart';
 import 'groups_screen.dart';
 import 'join_group_screen.dart';
-import 'landing_screen.dart';
 import 'settings_screen.dart';
 
 class FeedScreen extends StatefulWidget {
@@ -350,7 +350,7 @@ class _FeedScreenState extends State<FeedScreen> {
                       _load();
                     } else {
                       Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(builder: (_) => const LandingScreen()),
+                        MaterialPageRoute(builder: (_) => const AccountScreen()),
                         (_) => false,
                       );
                     }

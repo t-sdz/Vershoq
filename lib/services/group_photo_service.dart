@@ -48,6 +48,17 @@ class GroupPhotoService {
     });
   }
 
+  /// Récupère une fois (sans écoute live) les photos d'un groupe — utile pour
+  /// agréger plusieurs groupes dans une galerie perso globale.
+  static Future<List<GroupPhotoEntry>> fetchGroupPhotos(String groupId) async {
+    final snap = await _photosCol(groupId)
+        .orderBy('timestamp', descending: true)
+        .get();
+    return snap.docs
+        .map((d) => GroupPhotoEntry.fromMap(d.id, d.data()))
+        .toList();
+  }
+
   static Stream<List<GroupPhotoEntry>> streamGroupPhotos(String groupId) {
     return _photosCol(groupId)
         .orderBy('timestamp', descending: true)

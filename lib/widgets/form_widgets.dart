@@ -9,6 +9,7 @@ class AppTextField extends StatelessWidget {
   final IconData icon;
   final TextInputType? keyboardType;
   final TextCapitalization capitalization;
+  final bool obscureText;
 
   const AppTextField({
     super.key,
@@ -18,6 +19,7 @@ class AppTextField extends StatelessWidget {
     required this.icon,
     this.keyboardType,
     this.capitalization = TextCapitalization.none,
+    this.obscureText = false,
   });
 
   @override
@@ -35,6 +37,7 @@ class AppTextField extends StatelessWidget {
           controller: controller,
           keyboardType: keyboardType,
           textCapitalization: capitalization,
+          obscureText: obscureText,
           style: TextStyle(color: VTheme.warmDark),
           decoration: InputDecoration(
             hintText: hint,
