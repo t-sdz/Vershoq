@@ -42,13 +42,17 @@ service cloud.firestore {
                     && request.resource.data.code is string
                     && request.resource.data.code.size() >= 4
                     && request.resource.data.code.size() <= 12
-                    && request.resource.data.createdByEmail is string;
+                    && request.resource.data.createdByEmail is string
+                    && (!('photoBase64' in request.resource.data)
+                        || request.resource.data.photoBase64.size() < 400000);
 
-      // Mise à jour limitée au compteur de membres, au nom et aux admins
-      // (renommage du groupe, promotion d'un membre administrateur).
+      // Mise à jour limitée au compteur de membres, au nom, aux admins et à
+      // la photo du groupe (renommage, promotion admin, changement photo).
       allow update: if signedIn()
                     && request.resource.data.diff(resource.data)
-                          .affectedKeys().hasOnly(['memberCount', 'name', 'admins']);
+                          .affectedKeys().hasOnly(['memberCount', 'name', 'admins', 'photoBase64'])
+                    && (!('photoBase64' in request.resource.data)
+                        || request.resource.data.photoBase64.size() < 400000);
 
       // Pas de suppression de groupe depuis le client.
       allow delete: if false;
@@ -59,7 +63,9 @@ service cloud.firestore {
                       && request.resource.data.username is string
                       && request.resource.data.username.size() > 0
                       && request.resource.data.username.size() <= 40
-                      && request.resource.data.email is string;
+                      && request.resource.data.email is string
+                      && (!('photoBase64' in request.resource.data)
+                          || request.resource.data.photoBase64.size() < 400000);
         allow update: if false;
         allow delete: if signedIn();
       }

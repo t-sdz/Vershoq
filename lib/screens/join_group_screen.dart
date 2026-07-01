@@ -34,6 +34,7 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
         code: _codeCtrl.text,
         username: profile.username,
         email: profile.email,
+        memberPhotoBase64: profile.photoBase64,
       );
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(

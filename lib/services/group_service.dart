@@ -43,6 +43,8 @@ class GroupService {
     required String name,
     required String username,
     required String email,
+    String? photoBase64,
+    String? memberPhotoBase64,
   }) async {
     _validate(name: name, username: username, email: email);
 
@@ -59,12 +61,14 @@ class GroupService {
         'createdAt': now.toIso8601String(),
         'memberCount': 1,
         'admins': [creatorEmail],
+        if (photoBase64 != null) 'photoBase64': photoBase64,
       });
 
       final member = GroupMember(
         username: username.trim(),
         email: email.trim().toLowerCase(),
         joinedAt: now,
+        photoBase64: memberPhotoBase64,
       );
       await docRef.collection('members').add(member.toMap());
 
@@ -76,6 +80,7 @@ class GroupService {
         createdByUsername: username.trim(),
         createdAt: now,
         admins: [creatorEmail],
+        photoBase64: photoBase64,
       );
 
       await _saveLocal(group, member);
@@ -92,6 +97,7 @@ class GroupService {
     required String code,
     required String username,
     required String email,
+    String? memberPhotoBase64,
   }) async {
     _validate(username: username, email: email);
     final normalizedCode = code.trim().toUpperCase();
@@ -116,6 +122,7 @@ class GroupService {
         username: username.trim(),
         email: email.trim().toLowerCase(),
         joinedAt: now,
+        photoBase64: memberPhotoBase64,
       );
 
       // Évite les doublons : un même email ne rejoint qu'une fois
@@ -180,15 +187,20 @@ class GroupService {
       await _groups.doc(groupId).update({'name': trimmed});
       final current = await getCurrentGroup();
       if (current != null && current.id == groupId) {
-        await _saveGroupLocal(Group(
-          id: current.id,
-          name: trimmed,
-          code: current.code,
-          createdByEmail: current.createdByEmail,
-          createdByUsername: current.createdByUsername,
-          createdAt: current.createdAt,
-          admins: current.admins,
-        ));
+        await _saveGroupLocal(current.copyWith(name: trimmed));
+      }
+    } on FirebaseException catch (e) {
+      throw GroupException('Erreur Firebase : ${e.message ?? e.code}');
+    }
+  }
+
+  /// Change la photo du groupe (réservé aux admins côté UI).
+  static Future<void> updateGroupPhoto(String groupId, String photoBase64) async {
+    try {
+      await _groups.doc(groupId).update({'photoBase64': photoBase64});
+      final current = await getCurrentGroup();
+      if (current != null && current.id == groupId) {
+        await _saveGroupLocal(current.copyWith(photoBase64: photoBase64));
       }
     } on FirebaseException catch (e) {
       throw GroupException('Erreur Firebase : ${e.message ?? e.code}');

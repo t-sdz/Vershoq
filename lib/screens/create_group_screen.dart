@@ -1,5 +1,10 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../models/group.dart';
 import '../services/group_service.dart';
@@ -21,11 +26,28 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   bool _submitting = false;
   String? _error;
   Group? _created;
+  String? _photoBase64;
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickPhoto() async {
+    final picked =
+        await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked == null) return;
+    final compressed = await FlutterImageCompress.compressWithFile(
+      File(picked.path).absolute.path,
+      minWidth: 400,
+      minHeight: 400,
+      quality: 70,
+      keepExif: false,
+    );
+    if (compressed != null && mounted) {
+      setState(() => _photoBase64 = base64Encode(compressed));
+    }
   }
 
   Future<void> _submit() async {
@@ -37,6 +59,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         name: _nameCtrl.text,
         username: profile.username,
         email: profile.email,
+        photoBase64: _photoBase64,
+        memberPhotoBase64: profile.photoBase64,
       );
       if (mounted) setState(() => _created = group);
     } on GroupException catch (e) {
@@ -66,7 +90,36 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         const SizedBox(height: 4),
         Text('Un code sera généré automatiquement pour inviter tes amis.',
             style: TextStyle(color: VTheme.warmMuted, fontSize: 14)),
-        const SizedBox(height: 28),
+        const SizedBox(height: 24),
+        Center(
+          child: GestureDetector(
+            onTap: _pickPhoto,
+            child: Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: VTheme.solarGradient,
+                image: _photoBase64 != null
+                    ? DecorationImage(
+                        image: MemoryImage(base64Decode(_photoBase64!)),
+                        fit: BoxFit.cover)
+                    : null,
+              ),
+              child: _photoBase64 == null
+                  ? const Center(
+                      child: Icon(Icons.add_a_photo_outlined,
+                          color: Colors.white, size: 28))
+                  : null,
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Center(
+          child: Text('Photo du groupe (optionnel)',
+              style: TextStyle(color: VTheme.warmMuted, fontSize: 12)),
+        ),
+        const SizedBox(height: 20),
         AppTextField(
           controller: _nameCtrl,
           label: 'Nom du groupe',

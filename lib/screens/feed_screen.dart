@@ -15,10 +15,8 @@ import '../services/storage_service.dart';
 import '../services/theme_service.dart';
 import '../theme/v_theme.dart';
 import 'account_screen.dart';
-import 'create_group_screen.dart';
 import 'gallery_screen.dart';
 import 'groups_screen.dart';
-import 'join_group_screen.dart';
 import 'settings_screen.dart';
 
 class FeedScreen extends StatefulWidget {
@@ -114,6 +112,20 @@ class _FeedScreenState extends State<FeedScreen> {
     );
   }
 
+  Widget _groupAvatar() {
+    final photo = _group?.photoBase64;
+    if (photo == null) return const Text('☀️', style: TextStyle(fontSize: 32));
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white54, width: 2),
+        image: DecorationImage(image: MemoryImage(base64Decode(photo)), fit: BoxFit.cover),
+      ),
+    );
+  }
+
   Drawer _buildDrawer() {
     return Drawer(
       backgroundColor: VTheme.bgWarm,
@@ -133,7 +145,7 @@ class _FeedScreenState extends State<FeedScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('☀️', style: TextStyle(fontSize: 32)),
+                  _groupAvatar(),
                   const SizedBox(height: 8),
                   Text(
                     _group?.name ?? 'Vershoq',
@@ -252,25 +264,12 @@ class _FeedScreenState extends State<FeedScreen> {
 
             // Nav items
             _DrawerTile(
-              icon: Icons.group_add_outlined,
-              label: 'Rejoindre un groupe',
-              onTap: () async {
+              icon: Icons.account_circle_outlined,
+              label: 'Mon compte',
+              onTap: () {
                 Navigator.pop(context);
-                await Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const JoinGroupScreen()));
-                _load();
-              },
-            ),
-            _DrawerTile(
-              icon: Icons.add_circle_outline,
-              label: 'Créer un groupe',
-              onTap: () async {
-                Navigator.pop(context);
-                await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const CreateGroupScreen()));
-                _load();
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const AccountScreen()));
               },
             ),
             _DrawerTile(

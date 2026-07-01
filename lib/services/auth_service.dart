@@ -45,9 +45,22 @@ class AuthService {
 
   static Future<void> signOut() => _auth.signOut();
 
-  static Future<void> updatePassword(String newPassword) async {
+  /// Change le mot de passe après avoir vérifié le mot de passe actuel.
+  static Future<void> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null || user.email == null) {
+      throw AuthException('Reconnecte-toi avant de changer le mot de passe.');
+    }
     try {
-      await _auth.currentUser?.updatePassword(newPassword);
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(newPassword);
     } on FirebaseAuthException catch (e) {
       throw AuthException(_friendly(e));
     }

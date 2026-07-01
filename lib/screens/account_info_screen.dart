@@ -23,6 +23,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
   UserProfile? _profile;
   final _nameCtrl = TextEditingController();
   final _usernameCtrl = TextEditingController();
+  final _currentPasswordCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _loading = true;
   bool _saving = false;
@@ -88,6 +89,10 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
   }
 
   Future<void> _changePassword() async {
+    if (_currentPasswordCtrl.text.isEmpty) {
+      setState(() => _error = 'Entre ton mot de passe actuel.');
+      return;
+    }
     if (_passwordCtrl.text.trim().length < 6) {
       setState(() => _error = 'Mot de passe trop court (6 caractères minimum).');
       return;
@@ -98,7 +103,11 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
       _info = null;
     });
     try {
-      await AuthService.updatePassword(_passwordCtrl.text.trim());
+      await AuthService.updatePassword(
+        currentPassword: _currentPasswordCtrl.text,
+        newPassword: _passwordCtrl.text.trim(),
+      );
+      _currentPasswordCtrl.clear();
       _passwordCtrl.clear();
       if (mounted) setState(() => _info = 'Mot de passe mis à jour !');
     } on AuthException catch (e) {
@@ -106,6 +115,18 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  void _viewPhoto() {
+    final photo = _profile?.photoBase64;
+    if (photo == null) return;
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(backgroundColor: Colors.transparent, foregroundColor: Colors.white),
+        body: Center(child: InteractiveViewer(child: Image.memory(base64Decode(photo)))),
+      ),
+    ));
   }
 
   @override
@@ -123,11 +144,11 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
         padding: const EdgeInsets.all(24),
         children: [
           Center(
-            child: GestureDetector(
-              onTap: _saving ? null : _pickPhoto,
-              child: Stack(
-                children: [
-                  Container(
+            child: Stack(
+              children: [
+                GestureDetector(
+                  onTap: photo != null ? _viewPhoto : (_saving ? null : _pickPhoto),
+                  child: Container(
                     width: 96,
                     height: 96,
                     decoration: BoxDecoration(
@@ -153,9 +174,12 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                           )
                         : null,
                   ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
+                ),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: GestureDetector(
+                    onTap: _saving ? null : _pickPhoto,
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
@@ -164,8 +188,8 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                           color: Colors.white, size: 16),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 28),
@@ -202,6 +226,13 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
           Text('Changer le mot de passe',
               style:
                   TextStyle(color: VTheme.warmDark, fontSize: 15, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 12),
+          AppTextField(
+              controller: _currentPasswordCtrl,
+              label: 'Mot de passe actuel',
+              hint: 'Ton mot de passe actuel',
+              icon: Icons.lock_person_outlined,
+              obscureText: true),
           const SizedBox(height: 12),
           AppTextField(
               controller: _passwordCtrl,

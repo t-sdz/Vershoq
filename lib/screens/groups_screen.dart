@@ -1,4 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../models/group.dart';
 import '../services/group_service.dart';
@@ -119,6 +124,78 @@ class _GroupsScreenState extends State<GroupsScreen> {
     }
   }
 
+  Future<void> _changeGroupPhoto() async {
+    if (_current == null) return;
+    final picked =
+        await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked == null) return;
+    final compressed = await FlutterImageCompress.compressWithFile(
+      File(picked.path).absolute.path,
+      minWidth: 400,
+      minHeight: 400,
+      quality: 70,
+      keepExif: false,
+    );
+    if (compressed == null) return;
+    try {
+      await GroupService.updateGroupPhoto(_current!.id, base64Encode(compressed));
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
+  }
+
+  void _showProfile(GroupMember m, bool isMe) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(isMe ? 'Ton profil' : 'Profil'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: VTheme.solarGradient,
+                image: m.photoBase64 != null
+                    ? DecorationImage(
+                        image: MemoryImage(base64Decode(m.photoBase64!)),
+                        fit: BoxFit.cover)
+                    : null,
+              ),
+              child: m.photoBase64 == null
+                  ? Center(
+                      child: Text(
+                        m.username.isNotEmpty ? m.username[0].toUpperCase() : '?',
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold),
+                      ),
+                    )
+                  : null,
+            ),
+            const SizedBox(height: 14),
+            Text(m.username,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 4),
+            Text(m.email, style: TextStyle(color: VTheme.warmMuted, fontSize: 13)),
+            if (isMe) ...[
+              const SizedBox(height: 8),
+              Text('C\'est toi !',
+                  style: TextStyle(color: VTheme.orange, fontWeight: FontWeight.w600)),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fermer')),
+        ],
+      ),
+    );
+  }
+
   Future<void> _setAdmin(GroupMember member, bool makeAdmin) async {
     if (_current == null) return;
     try {
@@ -219,12 +296,50 @@ class _GroupsScreenState extends State<GroupsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('TON GROUPE',
-                  style: TextStyle(
-                      color: Colors.white38,
-                      fontSize: 11,
-                      letterSpacing: 2,
-                      fontWeight: FontWeight.bold)),
+              Row(
+                children: [
+                  const Text('TON GROUPE',
+                      style: TextStyle(
+                          color: Colors.white38,
+                          fontSize: 11,
+                          letterSpacing: 2,
+                          fontWeight: FontWeight.bold)),
+                  const Spacer(),
+                  if (isAdmin)
+                    GestureDetector(
+                      onTap: _changeGroupPhoto,
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white24,
+                          border: Border.all(color: Colors.white54, width: 1.5),
+                          image: group.photoBase64 != null
+                              ? DecorationImage(
+                                  image: MemoryImage(base64Decode(group.photoBase64!)),
+                                  fit: BoxFit.cover)
+                              : null,
+                        ),
+                        child: group.photoBase64 == null
+                            ? const Icon(Icons.add_a_photo_outlined,
+                                color: Colors.white, size: 18)
+                            : null,
+                      ),
+                    )
+                  else if (group.photoBase64 != null)
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        image: DecorationImage(
+                            image: MemoryImage(base64Decode(group.photoBase64!)),
+                            fit: BoxFit.cover),
+                      ),
+                    ),
+                ],
+              ),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -287,17 +402,23 @@ class _GroupsScreenState extends State<GroupsScreen> {
         ..._members.map((m) {
           final mIsAdmin = group.isAdmin(m.email);
           final mIsCreator = m.email == group.createdByEmail;
+          final mIsMe = m.email == _user?.email;
           return ListTile(
             contentPadding: EdgeInsets.zero,
+            onTap: () => _showProfile(m, mIsMe),
             leading: CircleAvatar(
               backgroundColor: mIsAdmin
                   ? VTheme.orange
                   : VTheme.orange.withOpacity(0.30),
-              child: Text(
-                m.username.isNotEmpty ? m.username[0].toUpperCase() : '?',
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold),
-              ),
+              backgroundImage:
+                  m.photoBase64 != null ? MemoryImage(base64Decode(m.photoBase64!)) : null,
+              child: m.photoBase64 == null
+                  ? Text(
+                      m.username.isNotEmpty ? m.username[0].toUpperCase() : '?',
+                      style: const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.bold),
+                    )
+                  : null,
             ),
             title: Row(
               children: [
@@ -344,7 +465,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
   Widget? _memberTrailing(Group group, GroupMember m, bool viewerIsAdmin,
       bool mIsAdmin, bool mIsCreator) {
     if (m.email == _user?.email) {
-      return Text('toi',
+      return Text('moi',
           style: TextStyle(color: VTheme.warmMuted, fontSize: 12));
     }
     // Seuls les admins agissent ; le créateur ne peut être ni rétrogradé ni exclu.

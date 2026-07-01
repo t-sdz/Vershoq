@@ -9,6 +9,9 @@ class Group {
   /// Emails des administrateurs. Le créateur en fait toujours partie.
   final List<String> admins;
 
+  /// Photo du groupe (base64), modifiable par un admin.
+  final String? photoBase64;
+
   const Group({
     required this.id,
     required this.name,
@@ -17,6 +20,7 @@ class Group {
     required this.createdByUsername,
     required this.createdAt,
     this.admins = const [],
+    this.photoBase64,
   });
 
   /// Un email est admin s'il est dans la liste OU s'il est le créateur.
@@ -33,6 +37,7 @@ class Group {
         'createdByUsername': createdByUsername,
         'createdAt': createdAt.toIso8601String(),
         'admins': admins,
+        if (photoBase64 != null) 'photoBase64': photoBase64,
       };
 
   factory Group.fromMap(String id, Map<String, dynamic> map) => Group(
@@ -45,6 +50,19 @@ class Group {
             DateTime.now(),
         admins: (map['admins'] as List?)?.map((e) => e.toString()).toList() ??
             const [],
+        photoBase64: map['photoBase64'] as String?,
+      );
+
+  Group copyWith({String? name, List<String>? admins, String? photoBase64}) =>
+      Group(
+        id: id,
+        name: name ?? this.name,
+        code: code,
+        createdByEmail: createdByEmail,
+        createdByUsername: createdByUsername,
+        createdAt: createdAt,
+        admins: admins ?? this.admins,
+        photoBase64: photoBase64 ?? this.photoBase64,
       );
 
   Map<String, dynamic> toJson() => {
@@ -61,16 +79,21 @@ class GroupMember {
   final String email;
   final DateTime joinedAt;
 
+  /// Photo de profil (snapshot au moment de rejoindre), base64.
+  final String? photoBase64;
+
   const GroupMember({
     required this.username,
     required this.email,
     required this.joinedAt,
+    this.photoBase64,
   });
 
   Map<String, dynamic> toMap() => {
         'username': username,
         'email': email,
         'joinedAt': joinedAt.toIso8601String(),
+        if (photoBase64 != null) 'photoBase64': photoBase64,
       };
 
   factory GroupMember.fromMap(Map<String, dynamic> map) => GroupMember(
@@ -78,5 +101,6 @@ class GroupMember {
         email: map['email'] as String? ?? '',
         joinedAt: DateTime.tryParse(map['joinedAt'] as String? ?? '') ??
             DateTime.now(),
+        photoBase64: map['photoBase64'] as String?,
       );
 }
