@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../services/names_service.dart';
+import '../services/group_service.dart';
 import '../services/notification_service.dart';
 import '../services/theme_service.dart';
 import '../theme/v_theme.dart';
@@ -15,7 +15,8 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  List<String> _names = [];
+  // Vrai si l'utilisateur est admin du groupe actif (accès notif + chrono).
+  bool _isAdmin = false;
 
   // Notifications
   bool _timeLimitEnabled = true;
@@ -38,10 +39,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final names = await NamesService.getNames();
+    final group = await GroupService.getCurrentGroup();
+    final user = await GroupService.getCurrentUser();
+    final isAdmin = group != null && group.isAdmin(user?.email);
     if (mounted) {
       setState(() {
-        _names = names;
+        _isAdmin = isAdmin;
         _timeLimitEnabled = prefs.getBool('notif_time_limit_enabled') ?? true;
         _startHour = prefs.getInt('notif_start_hour') ?? 9;
         _endHour = prefs.getInt('notif_end_hour') ?? 21;
@@ -90,47 +93,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _addName() async {
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Ajouter un prénom'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(hintText: 'Prénom...'),
-          onSubmitted: (v) => Navigator.pop(context, v),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Annuler')),
-          TextButton(
-              onPressed: () => Navigator.pop(context, controller.text),
-              child: const Text('Ajouter')),
-        ],
-      ),
-    );
-    if (name != null && name.trim().isNotEmpty) {
-      await NamesService.addName(name);
-      await _load();
-    }
-  }
-
-  Future<void> _removeName(String name) async {
-    if (_names.length <= 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Il doit rester au moins un prénom dans la liste.')),
-      );
-      return;
-    }
-    await NamesService.removeName(name);
-    await _load();
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -147,47 +109,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           _buildAppearanceCard(),
           const SizedBox(height: 32),
-          _SectionTitle('Notifications'),
-          const SizedBox(height: 8),
-          _buildNotifCard(),
-          const SizedBox(height: 12),
-          GradientButton(
-            label: 'Appliquer et replanifier',
-            gradient: VTheme.solarGradient,
-            shadows: VTheme.glowSolar,
-            onPressed: _saveNotifSettings,
-          ),
-          const SizedBox(height: 32),
-          _SectionTitle('Compte à rebours'),
-          const SizedBox(height: 8),
-          _buildCountdownCard(),
-          const SizedBox(height: 12),
-          GradientButton(
-            label: 'Enregistrer le compte à rebours',
-            gradient: VTheme.solarGradient,
-            shadows: VTheme.glowSolar,
-            onPressed: _saveCountdownSettings,
-          ),
-          const SizedBox(height: 32),
-          _SectionTitle('Liste des prénoms'),
-          const SizedBox(height: 8),
-          ..._names.map(
-            (name) => ListTile(
-              title: Text(name),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                onPressed: () => _removeName(name),
-              ),
-              contentPadding: EdgeInsets.zero,
+          // Réservé à l'admin du groupe.
+          if (_isAdmin) ...[
+            _SectionTitle('Notifications'),
+            const SizedBox(height: 8),
+            _buildNotifCard(),
+            const SizedBox(height: 12),
+            GradientButton(
+              label: 'Appliquer et replanifier',
+              gradient: VTheme.solarGradient,
+              shadows: VTheme.glowSolar,
+              onPressed: _saveNotifSettings,
             ),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: _addName,
-            icon: const Icon(Icons.add),
-            label: const Text('Ajouter un prénom'),
-          ),
-          const SizedBox(height: 32),
+            const SizedBox(height: 32),
+            _SectionTitle('Compte à rebours'),
+            const SizedBox(height: 8),
+            _buildCountdownCard(),
+            const SizedBox(height: 12),
+            GradientButton(
+              label: 'Enregistrer le compte à rebours',
+              gradient: VTheme.solarGradient,
+              shadows: VTheme.glowSolar,
+              onPressed: _saveCountdownSettings,
+            ),
+            const SizedBox(height: 32),
+          ],
         ],
       ),
     );
