@@ -26,6 +26,9 @@ class NotificationService {
   static Future<void> init({
     required void Function(String personName) onTap,
   }) async {
+    // Pas de notifications locales sur navigateur : on ignore tout pour ne
+    // pas faire planter l'app au démarrage sur le web.
+    if (kIsWeb) return;
     _onTap = onTap;
 
     tz.initializeTimeZones();
@@ -79,6 +82,7 @@ class NotificationService {
 
   /// Returns the notification payload if the app was launched by tapping one.
   static Future<String?> getLaunchPayload() async {
+    if (kIsWeb) return null;
     final details = await _plugin.getNotificationAppLaunchDetails();
     if (details?.didNotificationLaunchApp == true) {
       return details?.notificationResponse?.payload;
@@ -87,11 +91,13 @@ class NotificationService {
   }
 
   static Future<void> cancelAll() async {
+    if (kIsWeb) return;
     await _plugin.cancelAll();
   }
 
   /// Cancels all pending notifications and schedules fresh random ones.
   static Future<void> scheduleRandom() async {
+    if (kIsWeb) return;
     final prefs = await SharedPreferences.getInstance();
     final timeLimitEnabled = prefs.getBool('notif_time_limit_enabled') ?? true;
     final startHour = timeLimitEnabled ? (prefs.getInt('notif_start_hour') ?? 9) : 0;
