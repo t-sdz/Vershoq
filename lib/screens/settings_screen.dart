@@ -29,6 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _countdownEnabled = false;
   int _countdownSeconds = 15;
 
+  bool _notifsEnabled = true;
   bool _loading = true;
 
   @override
@@ -53,6 +54,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _maxCount = prefs.getInt('notif_max_count') ?? 5;
         _countdownEnabled = prefs.getBool('countdown_enabled') ?? false;
         _countdownSeconds = prefs.getInt('countdown_seconds') ?? 15;
+        _notifsEnabled = prefs.getBool('notifs_enabled') ?? true;
         _loading = false;
       });
     }
@@ -112,8 +114,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 32),
           // Réservé à l'admin du groupe.
           if (_isAdmin) ...[
-            _SectionTitle('Notifications'),
+            _SectionTitle('Notifications du groupe'),
             const SizedBox(height: 8),
+            _buildAdminActionsCard(),
+            const SizedBox(height: 24),
             _buildNotifCard(),
             const SizedBox(height: 12),
             GradientButton(
@@ -283,6 +287,67 @@ class _SettingsScreenState extends State<SettingsScreen> {
           onSelected: (_) => onPick(f),
         );
       }).toList(),
+    );
+  }
+
+  Widget _buildAdminActionsCard() {
+    return Card(
+      color: VTheme.surface,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Column(
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              secondary: Icon(
+                  _notifsEnabled
+                      ? Icons.notifications_active_outlined
+                      : Icons.notifications_off_outlined,
+                  color: VTheme.orange),
+              title: Text('Notifications activées',
+                  style: TextStyle(color: VTheme.warmDark)),
+              subtitle: Text(
+                  _notifsEnabled
+                      ? 'Les rappels aléatoires sont actifs'
+                      : 'Aucun rappel ne sera envoyé',
+                  style: TextStyle(color: VTheme.warmMuted, fontSize: 12)),
+              value: _notifsEnabled,
+              activeColor: VTheme.orange,
+              onChanged: (v) async {
+                setState(() => _notifsEnabled = v);
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setBool('notifs_enabled', v);
+                await NotificationService.cancelAll();
+                await NotificationService.scheduleRandom();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(v
+                          ? 'Notifications activées'
+                          : 'Notifications désactivées')));
+                }
+              },
+            ),
+            Divider(height: 4, color: VTheme.hairline),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.send_outlined, color: VTheme.orange),
+              title: Text('Envoyer une notif maintenant',
+                  style: TextStyle(color: VTheme.warmDark)),
+              subtitle: Text('Déclenche un moment photo tout de suite',
+                  style: TextStyle(color: VTheme.warmMuted, fontSize: 12)),
+              onTap: () async {
+                await NotificationService.sendImmediate();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Notif envoyée !')));
+                }
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 

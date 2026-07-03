@@ -107,6 +107,10 @@ class NotificationService {
 
     await _plugin.cancelAll();
 
+    // Interrupteur global (réglage admin) : notifications désactivées.
+    final notifsEnabled = prefs.getBool('notifs_enabled') ?? true;
+    if (!notifsEnabled) return;
+
     // Les notifications sont liées au groupe : sans groupe courant, on
     // n'en planifie aucune (corrige les notifs fantômes après un départ).
     final group = await GroupService.getCurrentGroup();
@@ -226,6 +230,17 @@ class NotificationService {
     final m = seconds ~/ 60;
     final s = seconds % 60;
     return s == 0 ? '$m min' : '$m min $s';
+  }
+
+  /// Envoie tout de suite une notification (sur cet appareil) avec un membre
+  /// du groupe au hasard.
+  static Future<void> sendImmediate() async {
+    if (kIsWeb) return;
+    List<String> names = await GroupService.getCachedMemberNames();
+    if (names.isEmpty) names = await NamesService.getNames();
+    if (names.isEmpty) return;
+    final name = names[Random().nextInt(names.length)];
+    await sendTestNotification(name);
   }
 
   /// Sends an immediate test notification with a random name.
