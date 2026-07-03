@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../models/group.dart';
 import 'group_service.dart';
 import 'names_service.dart';
 
@@ -122,56 +123,87 @@ class NotificationService {
     final countdownSeconds = prefs.getInt('countdown_seconds') ?? 15;
     final durationSeconds = countdownSeconds > 0 ? countdownSeconds : 120;
 
-    // Prefer group member names, fall back to manually saved names
-    List<String> names = await GroupService.getCachedMemberNames();
-    if (names.isEmpty) names = await NamesService.getNames();
-
-    // On ne se désigne jamais soi-même (« prends une photo avec toi »).
-    final self = (await GroupService.getCurrentUser())?.username.trim().toLowerCase();
-    if (self != null && self.isNotEmpty) {
-      names = names.where((n) => n.trim().toLowerCase() != self).toList();
-    }
-    if (names.isEmpty) return;
-
     final now = DateTime.now();
-    final random = Random();
+    final selfEmail =
+        (await GroupService.getCurrentUser())?.email.trim().toLowerCase() ?? '';
+
+    // Liste complète des membres, TRIÉE (identique sur tous les téléphones →
+    // moments synchronisés sans serveur). Repli sur le cache si hors-ligne.
+    List<GroupMember> members;
+    try {
+      members = await GroupService.getMembers(group.id);
+    } catch (_) {
+      members = [];
+    }
+    if (members.isEmpty) {
+      final cached = await GroupService.getCachedMemberNames();
+      members = cached
+          .map((n) => GroupMember(
+              username: n, email: n.trim().toLowerCase(), joinedAt: now))
+          .toList();
+    }
+    members.sort((a, b) => a.email.compareTo(b.email));
+    if (members.length < 2) return; // il faut au moins 2 personnes
+
     int id = 0;
 
-    // Schedule for the next 7 days
     for (int day = 0; day < 7; day++) {
       final base = now.add(Duration(days: day));
       final totalMinutes = (endHour - startHour) * 60 + 59;
       if (totalMinutes <= 0) continue;
 
-      // Random count between min and max for this day
-      final range = (maxCount - minCount).abs();
-      final dailyCount = minCount + (range == 0 ? 0 : random.nextInt(range + 1));
+      // Numéro de jour absolu → graine commune à tous les appareils.
+      final dayNum = DateTime(base.year, base.month, base.day)
+              .millisecondsSinceEpoch ~/
+          86400000;
+      final dayRng = Random(_stableHash('${group.id}|$dayNum'));
 
-      final minuteOffsets = List.generate(
+      final range = (maxCount - minCount).abs();
+      final dailyCount = minCount + (range == 0 ? 0 : dayRng.nextInt(range + 1));
+
+      final offsets = List.generate(
         dailyCount,
-        (_) => startHour * 60 + random.nextInt(totalMinutes),
+        (_) => startHour * 60 + dayRng.nextInt(totalMinutes),
       )..sort();
 
-      for (final offset in minuteOffsets) {
+      for (int i = 0; i < offsets.length; i++) {
+        final offset = offsets[i];
         final scheduled = DateTime(
-          base.year,
-          base.month,
-          base.day,
-          offset ~/ 60,
-          offset % 60,
-        );
-        if (scheduled.isAfter(now)) {
-          // Choisit 1 à 3 membres au hasard (« avec Alice, Thomas et Pauline »).
-          final shuffled = [...names]..shuffle(random);
-          final maxPick = shuffled.length < 3 ? shuffled.length : 3;
-          final count = 1 + random.nextInt(maxPick);
-          final label = _joinNames(shuffled.take(count).toList());
-          await _schedule(id++, scheduled, label, durationSeconds);
-        }
+            base.year, base.month, base.day, offset ~/ 60, offset % 60);
+        if (!scheduled.isAfter(now)) continue;
+
+        // Moment synchronisé : même sous-groupe tiré sur tous les téléphones.
+        final mRng = Random(_stableHash('${group.id}|$dayNum|$i'));
+        final pool = [...members]..shuffle(mRng);
+        final size = 2 + mRng.nextInt(members.length - 1); // entre 2 et N
+        final subset = pool.take(size).toList();
+
+        // Je ne suis notifié que si je fais partie du moment.
+        final inMoment =
+            subset.any((m) => m.email.trim().toLowerCase() == selfEmail);
+        if (!inMoment) continue;
+
+        // Les personnes à photographier = les autres du sous-groupe.
+        final targets = subset
+            .where((m) => m.email.trim().toLowerCase() != selfEmail)
+            .map((m) => m.username)
+            .toList();
+        if (targets.isEmpty) continue;
+
+        await _schedule(id++, scheduled, _joinNames(targets), durationSeconds);
       }
     }
 
     debugPrint('NotificationService: scheduled $id notifications');
+  }
+
+  /// Hash stable et identique sur tous les appareils (pas String.hashCode).
+  static int _stableHash(String s) {
+    int h = 0;
+    for (final c in s.codeUnits) {
+      h = (h * 31 + c) & 0x7fffffff;
+    }
+    return h;
   }
 
   static Future<void> _schedule(
