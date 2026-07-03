@@ -85,6 +85,39 @@ class AuthService {
 
   static bool get isEmailVerified => _auth.currentUser?.emailVerified ?? false;
 
+  /// Supprime définitivement le compte (réauthentification incluse).
+  static Future<void> deleteAccount({String? currentPassword}) async {
+    final user = _auth.currentUser;
+    if (user == null) throw AuthException('Non connecté.');
+    try {
+      final providers = user.providerData.map((p) => p.providerId).toList();
+      if (providers.contains('google.com')) {
+        final gUser = await GoogleSignIn().signIn();
+        if (gUser == null) throw AuthException('Réauthentification annulée.');
+        final gAuth = await gUser.authentication;
+        final cred = GoogleAuthProvider.credential(
+          accessToken: gAuth.accessToken,
+          idToken: gAuth.idToken,
+        );
+        await user.reauthenticateWithCredential(cred);
+      } else if (user.email != null && currentPassword != null) {
+        final cred = EmailAuthProvider.credential(
+          email: user.email!,
+          password: currentPassword,
+        );
+        await user.reauthenticateWithCredential(cred);
+      }
+      await user.delete();
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_friendly(e));
+    }
+  }
+
+  static bool get isPasswordUser =>
+      _auth.currentUser?.providerData
+          .any((p) => p.providerId == 'password') ??
+      false;
+
   static Future<void> signOut() async {
     try {
       await GoogleSignIn().signOut();

@@ -100,6 +100,13 @@ class UserProfileService {
     }
   }
 
+  static Future<void> deleteProfile(String uid) async {
+    try {
+      await _users.doc(uid).delete();
+    } catch (_) {}
+    await clearCache();
+  }
+
   static Future<void> clearCache() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_cacheKey);

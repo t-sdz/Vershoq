@@ -293,6 +293,23 @@ class GroupService {
 
   /// Change le groupe actif (celui affiché dans le feed) et replanifie les
   /// notifications pour ce groupe.
+  /// Quitte tous les groupes (retire le membre de chacun) et efface tout le
+  /// local. Utilisé lors de la suppression de compte.
+  static Future<void> leaveAllGroups(String email) async {
+    final joined = await getJoinedGroups();
+    for (final j in joined) {
+      try {
+        await removeMember(j.group.id, email);
+      } catch (_) {}
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_currentGroupKey);
+    await prefs.remove(_currentUserKey);
+    await prefs.remove(_memberNamesKey);
+    await prefs.remove(_joinedGroupsKey);
+    await NotificationService.cancelAll();
+  }
+
   static Future<void> setActiveGroup(String groupId) async {
     final list = await getJoinedGroups();
     JoinedGroup? target;

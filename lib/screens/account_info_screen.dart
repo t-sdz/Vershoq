@@ -6,9 +6,11 @@ import 'package:image_picker/image_picker.dart';
 
 import '../models/user_profile.dart';
 import '../services/auth_service.dart';
+import '../services/group_service.dart';
 import '../services/user_profile_service.dart';
 import '../theme/v_theme.dart';
 import '../widgets/form_widgets.dart';
+import 'login_screen.dart';
 
 /// Page 3 — Infos du compte : nom, photo de profil, pseudo, email, mot de
 /// passe.
@@ -114,6 +116,89 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
       setState(() => _error = e.message);
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _deleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Supprimer mon compte ?'),
+        content: const Text(
+            'Ton compte, ton profil et ta présence dans les groupes seront '
+            'supprimés définitivement. Cette action est irréversible.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Supprimer',
+                  style: TextStyle(color: Colors.redAccent))),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    // Les comptes email doivent confirmer avec leur mot de passe.
+    String? pwd;
+    if (AuthService.isPasswordUser) {
+      final ctrl = TextEditingController();
+      pwd = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Confirme ton mot de passe'),
+          content: TextField(
+            controller: ctrl,
+            obscureText: true,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'Mot de passe'),
+            onSubmitted: (v) => Navigator.pop(ctx, v),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Annuler')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, ctrl.text),
+                child: const Text('Confirmer')),
+          ],
+        ),
+      );
+      if (pwd == null || pwd.isEmpty) return;
+    }
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final user = AuthService.currentUser;
+      // Nettoyage AVANT de supprimer l'utilisateur (les règles Firestore
+      // exigent d'être authentifié).
+      if (user?.email != null) {
+        await GroupService.leaveAllGroups(user!.email!);
+      }
+      if (user != null) {
+        await UserProfileService.deleteProfile(user.uid);
+      }
+      await AuthService.deleteAccount(currentPassword: pwd);
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (_) => false,
+        );
+      }
+    } on AuthException catch (e) {
+      setState(() {
+        _saving = false;
+        _error = e.message;
+      });
+    } catch (e) {
+      setState(() {
+        _saving = false;
+        _error = 'Erreur : $e';
+      });
     }
   }
 
@@ -253,6 +338,17 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
             const SizedBox(height: 16),
             Text(_info!, style: TextStyle(color: VTheme.orange, fontWeight: FontWeight.w600)),
           ],
+          const SizedBox(height: 32),
+          Divider(color: VTheme.hairline),
+          const SizedBox(height: 16),
+          TextButton.icon(
+            onPressed: _saving ? null : _deleteAccount,
+            icon: const Icon(Icons.delete_forever_outlined,
+                color: Colors.redAccent),
+            label: const Text('Supprimer mon compte',
+                style: TextStyle(color: Colors.redAccent)),
+          ),
+          const SizedBox(height: 24),
         ],
       ),
     );
