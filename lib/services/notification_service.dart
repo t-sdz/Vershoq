@@ -125,6 +125,12 @@ class NotificationService {
     // Prefer group member names, fall back to manually saved names
     List<String> names = await GroupService.getCachedMemberNames();
     if (names.isEmpty) names = await NamesService.getNames();
+
+    // On ne se désigne jamais soi-même (« prends une photo avec toi »).
+    final self = (await GroupService.getCurrentUser())?.username.trim().toLowerCase();
+    if (self != null && self.isNotEmpty) {
+      names = names.where((n) => n.trim().toLowerCase() != self).toList();
+    }
     if (names.isEmpty) return;
 
     final now = DateTime.now();
@@ -155,8 +161,12 @@ class NotificationService {
           offset % 60,
         );
         if (scheduled.isAfter(now)) {
-          final name = names[random.nextInt(names.length)];
-          await _schedule(id++, scheduled, name, durationSeconds);
+          // Choisit 1 à 3 membres au hasard (« avec Alice, Thomas et Pauline »).
+          final shuffled = [...names]..shuffle(random);
+          final maxPick = shuffled.length < 3 ? shuffled.length : 3;
+          final count = 1 + random.nextInt(maxPick);
+          final label = _joinNames(shuffled.take(count).toList());
+          await _schedule(id++, scheduled, label, durationSeconds);
         }
       }
     }
@@ -232,15 +242,29 @@ class NotificationService {
     return s == 0 ? '$m min' : '$m min $s';
   }
 
-  /// Envoie tout de suite une notification (sur cet appareil) avec un membre
-  /// du groupe au hasard.
+  /// Assemble une liste de prénoms : « A », « A et B », « A, B et C ».
+  static String _joinNames(List<String> names) {
+    if (names.isEmpty) return '';
+    if (names.length == 1) return names.first;
+    return '${names.sublist(0, names.length - 1).join(', ')} et ${names.last}';
+  }
+
+  /// Envoie tout de suite une notification (sur cet appareil) avec 1 à 3
+  /// membres du groupe au hasard (jamais soi-même).
   static Future<void> sendImmediate() async {
     if (kIsWeb) return;
+    final random = Random();
     List<String> names = await GroupService.getCachedMemberNames();
     if (names.isEmpty) names = await NamesService.getNames();
+    final self = (await GroupService.getCurrentUser())?.username.trim().toLowerCase();
+    if (self != null && self.isNotEmpty) {
+      names = names.where((n) => n.trim().toLowerCase() != self).toList();
+    }
     if (names.isEmpty) return;
-    final name = names[Random().nextInt(names.length)];
-    await sendTestNotification(name);
+    final shuffled = [...names]..shuffle(random);
+    final maxPick = shuffled.length < 3 ? shuffled.length : 3;
+    final count = 1 + random.nextInt(maxPick);
+    await sendTestNotification(_joinNames(shuffled.take(count).toList()));
   }
 
   /// Sends an immediate test notification with a random name.
