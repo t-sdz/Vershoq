@@ -39,7 +39,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final group = await GroupService.getCurrentGroup();
+    // Version fraîche depuis Firestore (admins à jour), pas le cache local.
+    final group = await GroupService.refreshCurrentGroup();
     final user = await GroupService.getCurrentUser();
     final isAdmin = group != null && group.isAdmin(user?.email);
     if (mounted) {
