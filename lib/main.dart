@@ -8,6 +8,7 @@ import 'firebase_options.dart';
 import 'screens/account_screen.dart';
 import 'screens/camera_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/verify_email_screen.dart';
 import 'services/notification_service.dart';
 import 'services/theme_service.dart';
 import 'theme/v_theme.dart';
@@ -83,9 +84,11 @@ class VershoqApp extends StatelessWidget {
                           child: CircularProgressIndicator(color: VTheme.orange)),
                     );
                   }
-                  return snap.data != null
-                      ? const AccountScreen()
-                      : const LoginScreen();
+                  final user = snap.data;
+                  if (user == null) return const LoginScreen();
+                  // Email non vérifié (sauf comptes Google déjà vérifiés).
+                  if (!user.emailVerified) return const VerifyEmailScreen();
+                  return const AccountScreen();
                 },
               ),
       ),

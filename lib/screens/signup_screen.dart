@@ -4,7 +4,7 @@ import '../services/auth_service.dart';
 import '../services/user_profile_service.dart';
 import '../theme/v_theme.dart';
 import '../widgets/form_widgets.dart';
-import 'account_screen.dart';
+import 'verify_email_screen.dart';
 import 'login_screen.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -39,9 +39,11 @@ class _SignupScreenState extends State<SignupScreen> {
         username: _usernameCtrl.text,
         email: _emailCtrl.text,
       );
+      await AuthService.sendEmailVerification();
       if (mounted) {
+        // On demande la vérification de l'email avant d'accéder au compte.
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const AccountScreen()),
+          MaterialPageRoute(builder: (_) => const VerifyEmailScreen()),
           (_) => false,
         );
       }

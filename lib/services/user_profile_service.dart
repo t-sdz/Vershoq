@@ -31,6 +31,25 @@ class UserProfileService {
     return profile;
   }
 
+  /// Crée le profil s'il n'existe pas (cas d'une 1re connexion Google).
+  static Future<UserProfile> ensureProfile({
+    required String uid,
+    required String email,
+    String? displayName,
+  }) async {
+    final existing = await fetchProfile(uid);
+    if (existing != null) return existing;
+    final name = (displayName ?? '').trim();
+    final base = name.isNotEmpty ? name : email.split('@').first;
+    final username = base.split(' ').first;
+    return createProfile(
+      uid: uid,
+      name: name.isNotEmpty ? name : username,
+      username: username,
+      email: email,
+    );
+  }
+
   static Future<UserProfile?> fetchProfile(String uid) async {
     try {
       final doc = await _users.doc(uid).get();
