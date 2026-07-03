@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/v_theme.dart';
 
-class AppTextField extends StatelessWidget {
+class AppTextField extends StatefulWidget {
   final TextEditingController controller;
   final String label;
   final String hint;
@@ -23,25 +23,42 @@ class AppTextField extends StatelessWidget {
   });
 
   @override
+  State<AppTextField> createState() => _AppTextFieldState();
+}
+
+class _AppTextFieldState extends State<AppTextField> {
+  late bool _obscured = widget.obscureText;
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
+        Text(widget.label,
             style: TextStyle(
                 color: VTheme.warmDark,
                 fontSize: 13,
                 fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
         TextField(
-          controller: controller,
-          keyboardType: keyboardType,
-          textCapitalization: capitalization,
-          obscureText: obscureText,
+          controller: widget.controller,
+          keyboardType: widget.keyboardType,
+          textCapitalization: widget.capitalization,
+          obscureText: _obscured,
           style: TextStyle(color: VTheme.warmDark),
           decoration: InputDecoration(
-            hintText: hint,
-            prefixIcon: Icon(icon, color: VTheme.orange),
+            hintText: widget.hint,
+            prefixIcon: Icon(widget.icon, color: VTheme.orange),
+            suffixIcon: widget.obscureText
+                ? IconButton(
+                    icon: Icon(
+                        _obscured
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        color: VTheme.warmMuted),
+                    onPressed: () => setState(() => _obscured = !_obscured),
+                  )
+                : null,
           ),
         ),
       ],
