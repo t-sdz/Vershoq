@@ -51,7 +51,7 @@ service cloud.firestore {
       // la photo du groupe (renommage, promotion admin, changement photo).
       allow update: if signedIn()
                     && request.resource.data.diff(resource.data)
-                          .affectedKeys().hasOnly(['memberCount', 'name', 'admins', 'photoBase64'])
+                          .affectedKeys().hasOnly(['memberCount', 'name', 'admins', 'photoBase64', 'notifConfig'])
                     && (!('photoBase64' in request.resource.data)
                         || request.resource.data.photoBase64.size() < 400000);
 

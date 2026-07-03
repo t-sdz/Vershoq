@@ -100,26 +100,27 @@ class NotificationService {
   static Future<void> scheduleRandom() async {
     if (kIsWeb) return;
     final prefs = await SharedPreferences.getInstance();
-    final timeLimitEnabled = prefs.getBool('notif_time_limit_enabled') ?? true;
-    final startHour = timeLimitEnabled ? (prefs.getInt('notif_start_hour') ?? 9) : 0;
-    final endHour = timeLimitEnabled ? (prefs.getInt('notif_end_hour') ?? 21) : 23;
-    final minCount = prefs.getInt('notif_min_count') ?? 2;
-    final maxCount = prefs.getInt('notif_max_count') ?? 5;
 
     await _plugin.cancelAll();
-
-    // Interrupteur global (réglage admin) : notifications désactivées.
-    final notifsEnabled = prefs.getBool('notifs_enabled') ?? true;
-    if (!notifsEnabled) return;
 
     // Les notifications sont liées au groupe : sans groupe courant, on
     // n'en planifie aucune (corrige les notifs fantômes après un départ).
     final group = await GroupService.getCurrentGroup();
     if (group == null) return;
 
-    // Durée du compte à rebours de la notif = temps choisi pour prendre la
-    // photo (paramètre « Compte à rebours »). Toujours cohérent avec la
-    // caméra ; 2 min par défaut si la valeur est à 0.
+    // Config partagée par tout le groupe (fixée par l'admin) → tous les
+    // téléphones utilisent les mêmes réglages = notifs synchronisées.
+    if (!group.notifEnabled) return;
+    final timeLimitEnabled = group.notifTimeLimit;
+    final startHour = timeLimitEnabled ? group.notifStartHour : 0;
+    final endHour = timeLimitEnabled ? group.notifEndHour : 23;
+    final minCount = group.notifMinCount;
+    final maxCount = group.notifMaxCount;
+    final minNames = group.notifMinNames;
+    final maxNames = group.notifMaxNames;
+
+    // Durée du compte à rebours de la notif (paramètre local « Compte à
+    // rebours ») ; 2 min par défaut si la valeur est à 0.
     final countdownSeconds = prefs.getInt('countdown_seconds') ?? 15;
     final durationSeconds = countdownSeconds > 0 ? countdownSeconds : 120;
 
@@ -175,8 +176,13 @@ class NotificationService {
         // Moment synchronisé : même sous-groupe tiré sur tous les téléphones.
         final mRng = Random(_stableHash('${group.id}|$dayNum|$i'));
         final pool = [...members]..shuffle(mRng);
-        final size = 2 + mRng.nextInt(members.length - 1); // entre 2 et N
-        final subset = pool.take(size).toList();
+        // Nombre de noms (personnes à photographier) borné par l'admin, puis
+        // par la taille du groupe. Le sous-groupe = noms + 1 (soi inclus).
+        final maxTargets = members.length - 1;
+        final lo = minNames.clamp(1, maxTargets);
+        final hi = maxNames.clamp(lo, maxTargets);
+        final namesCount = lo + mRng.nextInt(hi - lo + 1);
+        final subset = pool.take(namesCount + 1).toList();
 
         // Je ne suis notifié que si je fais partie du moment.
         final inMoment =

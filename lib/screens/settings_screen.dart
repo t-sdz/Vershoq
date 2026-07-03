@@ -17,15 +17,18 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   // Vrai si l'utilisateur est admin du groupe actif (accès notif + chrono).
   bool _isAdmin = false;
+  String? _groupId;
 
-  // Notifications
+  // Notifications (config partagée du groupe)
   bool _timeLimitEnabled = true;
   int _startHour = 9;
   int _endHour = 21;
   int _minCount = 2;
   int _maxCount = 5;
+  int _minNames = 1;
+  int _maxNames = 3;
 
-  // Countdown
+  // Countdown (local)
   bool _countdownEnabled = false;
   int _countdownSeconds = 15;
 
@@ -47,16 +50,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) {
       setState(() {
         _isAdmin = isAdmin;
-        _timeLimitEnabled = prefs.getBool('notif_time_limit_enabled') ?? true;
-        _startHour = prefs.getInt('notif_start_hour') ?? 9;
-        _endHour = prefs.getInt('notif_end_hour') ?? 21;
-        _minCount = prefs.getInt('notif_min_count') ?? 2;
-        _maxCount = prefs.getInt('notif_max_count') ?? 5;
+        _groupId = group?.id;
+        // Config des notifs : partagée par le groupe.
+        _notifsEnabled = group?.notifEnabled ?? true;
+        _timeLimitEnabled = group?.notifTimeLimit ?? true;
+        _startHour = group?.notifStartHour ?? 9;
+        _endHour = group?.notifEndHour ?? 21;
+        _minCount = group?.notifMinCount ?? 2;
+        _maxCount = group?.notifMaxCount ?? 5;
+        _minNames = group?.notifMinNames ?? 1;
+        _maxNames = group?.notifMaxNames ?? 3;
+        // Compte à rebours : local.
         _countdownEnabled = prefs.getBool('countdown_enabled') ?? false;
         _countdownSeconds = prefs.getInt('countdown_seconds') ?? 15;
-        _notifsEnabled = prefs.getBool('notifs_enabled') ?? true;
         _loading = false;
       });
+    }
+  }
+
+  Map<String, dynamic> _buildConfig() => {
+        'enabled': _notifsEnabled,
+        'timeLimit': _timeLimitEnabled,
+        'startHour': _startHour,
+        'endHour': _endHour,
+        'minCount': _minCount,
+        'maxCount': _maxCount,
+        'minNames': _minNames,
+        'maxNames': _maxNames,
+      };
+
+  Future<void> _saveConfig({String? message}) async {
+    if (_groupId == null) return;
+    await GroupService.updateNotifConfig(_groupId!, _buildConfig());
+    await NotificationService.cancelAll();
+    await NotificationService.scheduleRandom();
+    if (mounted && message != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -67,19 +97,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
       return;
     }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('notif_time_limit_enabled', _timeLimitEnabled);
-    await prefs.setInt('notif_start_hour', _startHour);
-    await prefs.setInt('notif_end_hour', _endHour);
-    await prefs.setInt('notif_min_count', _minCount);
-    await prefs.setInt('notif_max_count', _maxCount);
-    await NotificationService.cancelAll();
-    await NotificationService.scheduleRandom();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Notifications replanifiées !')),
-      );
-    }
+    await _saveConfig(message: 'Notifications replanifiées !');
   }
 
   Future<void> _saveCountdownSettings() async {
@@ -317,16 +335,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               activeColor: VTheme.orange,
               onChanged: (v) async {
                 setState(() => _notifsEnabled = v);
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.setBool('notifs_enabled', v);
-                await NotificationService.cancelAll();
-                await NotificationService.scheduleRandom();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text(v
-                          ? 'Notifications activées'
-                          : 'Notifications désactivées')));
-                }
+                await _saveConfig(
+                    message: v
+                        ? 'Notifications activées'
+                        : 'Notifications désactivées');
               },
             ),
             Divider(height: 4, color: VTheme.hairline),
@@ -456,6 +468,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'Entre $_minCount et $_maxCount notifications aléatoires par jour',
                 style:
                     TextStyle(color: VTheme.warmMuted, fontSize: 12),
+              ),
+            ),
+
+            const Divider(color: Color(0xFFFFE8D6)),
+            const SizedBox(height: 4),
+
+            // Min / Max de noms par photo
+            Text('Noms par photo',
+                style: TextStyle(
+                    color: VTheme.warmDark,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            _SliderRow(
+              label: 'Minimum',
+              value: _minNames.toDouble(),
+              min: 1,
+              max: 10,
+              display: '$_minNames',
+              onChanged: (v) {
+                final n = v.round();
+                setState(() {
+                  _minNames = n;
+                  if (_maxNames < _minNames) _maxNames = _minNames;
+                });
+              },
+            ),
+            _SliderRow(
+              label: 'Maximum',
+              value: _maxNames.toDouble(),
+              min: 1,
+              max: 10,
+              display: '$_maxNames',
+              onChanged: (v) {
+                final n = v.round();
+                setState(() {
+                  _maxNames = n;
+                  if (_minNames > _maxNames) _minNames = _maxNames;
+                });
+              },
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Chaque photo à prendre avec $_minNames à $_maxNames personne(s)',
+                style: TextStyle(color: VTheme.warmMuted, fontSize: 12),
               ),
             ),
           ],

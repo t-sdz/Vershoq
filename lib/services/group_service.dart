@@ -207,6 +207,20 @@ class GroupService {
     }
   }
 
+  /// Met à jour la config des notifications du groupe (réservé admin côté UI).
+  static Future<void> updateNotifConfig(
+      String groupId, Map<String, dynamic> config) async {
+    try {
+      await _groups.doc(groupId).update({'notifConfig': config});
+      final current = await getCurrentGroup();
+      if (current != null && current.id == groupId) {
+        await _saveGroupLocal(current.copyWith(notifConfig: config));
+      }
+    } on FirebaseException catch (e) {
+      throw GroupException('Erreur Firebase : ${e.message ?? e.code}');
+    }
+  }
+
   /// Promeut un membre administrateur du groupe.
   static Future<void> addAdmin(String groupId, String memberEmail) async {
     try {

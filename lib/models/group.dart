@@ -12,6 +12,10 @@ class Group {
   /// Photo du groupe (base64), modifiable par un admin.
   final String? photoBase64;
 
+  /// Config des notifications, partagée par tous les membres (fixée par
+  /// l'admin) : horaires, nombre de notifs/jour, nombre de noms par photo…
+  final Map<String, dynamic>? notifConfig;
+
   const Group({
     required this.id,
     required this.name,
@@ -21,6 +25,7 @@ class Group {
     required this.createdAt,
     this.admins = const [],
     this.photoBase64,
+    this.notifConfig,
   });
 
   /// Un email est admin s'il est dans la liste OU s'il est le créateur.
@@ -30,6 +35,20 @@ class Group {
     return e == createdByEmail || admins.contains(e);
   }
 
+  int _cfgInt(String key, int fallback) =>
+      (notifConfig?[key] as num?)?.toInt() ?? fallback;
+  bool _cfgBool(String key, bool fallback) =>
+      notifConfig?[key] as bool? ?? fallback;
+
+  bool get notifEnabled => _cfgBool('enabled', true);
+  bool get notifTimeLimit => _cfgBool('timeLimit', true);
+  int get notifStartHour => _cfgInt('startHour', 9);
+  int get notifEndHour => _cfgInt('endHour', 21);
+  int get notifMinCount => _cfgInt('minCount', 2);
+  int get notifMaxCount => _cfgInt('maxCount', 5);
+  int get notifMinNames => _cfgInt('minNames', 1);
+  int get notifMaxNames => _cfgInt('maxNames', 3);
+
   Map<String, dynamic> toMap() => {
         'name': name,
         'code': code,
@@ -38,6 +57,7 @@ class Group {
         'createdAt': createdAt.toIso8601String(),
         'admins': admins,
         if (photoBase64 != null) 'photoBase64': photoBase64,
+        if (notifConfig != null) 'notifConfig': notifConfig,
       };
 
   factory Group.fromMap(String id, Map<String, dynamic> map) => Group(
@@ -51,9 +71,15 @@ class Group {
         admins: (map['admins'] as List?)?.map((e) => e.toString()).toList() ??
             const [],
         photoBase64: map['photoBase64'] as String?,
+        notifConfig: (map['notifConfig'] as Map?)?.cast<String, dynamic>(),
       );
 
-  Group copyWith({String? name, List<String>? admins, String? photoBase64}) =>
+  Group copyWith({
+    String? name,
+    List<String>? admins,
+    String? photoBase64,
+    Map<String, dynamic>? notifConfig,
+  }) =>
       Group(
         id: id,
         name: name ?? this.name,
@@ -63,6 +89,7 @@ class Group {
         createdAt: createdAt,
         admins: admins ?? this.admins,
         photoBase64: photoBase64 ?? this.photoBase64,
+        notifConfig: notifConfig ?? this.notifConfig,
       );
 
   Map<String, dynamic> toJson() => {
