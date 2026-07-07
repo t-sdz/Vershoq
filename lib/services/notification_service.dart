@@ -227,13 +227,22 @@ class NotificationService {
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     final consumed = prefs.getInt(_consumedKey) ?? 0;
     try {
+      // Fenêtre pour ouvrir l'app et prendre la photo : au moins 5 min
+      // (indépendante du court compte à rebours affiché dans la notif).
+      const windowMs = 5 * 60 * 1000;
+      // On prend le moment le plus récent encore actif.
+      var bestT = 0;
+      String? bestLabel;
       for (final e in jsonDecode(raw) as List) {
         final t = (e['t'] as num).toInt();
-        final d = (e['d'] as num).toInt();
-        if (nowMs >= t && nowMs <= t + d * 1000 && t != consumed) {
-          await prefs.setInt(_consumedKey, t);
-          return e['l'] as String;
+        if (nowMs >= t && nowMs <= t + windowMs && t != consumed && t > bestT) {
+          bestT = t;
+          bestLabel = e['l'] as String;
         }
+      }
+      if (bestLabel != null) {
+        await prefs.setInt(_consumedKey, bestT);
+        return bestLabel;
       }
     } catch (_) {}
     return null;
