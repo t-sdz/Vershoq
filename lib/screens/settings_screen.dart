@@ -136,15 +136,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 8),
             _buildAdminActionsCard(),
             const SizedBox(height: 24),
-            _buildNotifCard(),
-            const SizedBox(height: 12),
-            GradientButton(
-              label: 'Appliquer et replanifier',
-              gradient: VTheme.solarGradient,
-              shadows: VTheme.glowSolar,
-              onPressed: _saveNotifSettings,
-            ),
+
+            _SectionTitle('Limiter les heures'),
+            const SizedBox(height: 8),
+            _buildHoursCard(),
+            _validateButton('Valider les heures', _saveNotifSettings),
+            const SizedBox(height: 24),
+
+            _SectionTitle('Notifications par jour'),
+            const SizedBox(height: 8),
+            _buildCountCard(),
+            _validateButton('Valider',
+                () => _saveConfig(message: 'Notifications par jour enregistrées !')),
+            const SizedBox(height: 24),
+
+            _SectionTitle('Noms par photo'),
+            const SizedBox(height: 8),
+            _buildNamesCard(),
+            _validateButton('Valider',
+                () => _saveConfig(message: 'Noms par photo enregistrés !')),
             const SizedBox(height: 32),
+
             _SectionTitle('Compte à rebours'),
             const SizedBox(height: 8),
             _buildCountdownCard(),
@@ -363,163 +375,157 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildNotifCard() {
-    return Card(
-      color: VTheme.surface,
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      shadowColor: VTheme.orange.withOpacity(0.1),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Toggle heures
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text('Limiter les heures',
-                  style: TextStyle(color: VTheme.warmDark)),
-              subtitle: Text(
-                _timeLimitEnabled
-                    ? 'Entre ${_startHour}h00 et ${_endHour}h00'
-                    : 'À toute heure de la journée',
-                style: TextStyle(color: VTheme.warmMuted, fontSize: 12),
-              ),
-              value: _timeLimitEnabled,
-              activeColor: VTheme.orange,
-              onChanged: (v) => setState(() => _timeLimitEnabled = v),
-            ),
+  Widget _settingsCard(List<Widget> children) => Card(
+        color: VTheme.surface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, children: children),
+        ),
+      );
 
-            // Heures de début / fin (visibles seulement si toggle actif)
-            if (_timeLimitEnabled) ...[
-              const Divider(color: Color(0xFFFFE8D6)),
-              const SizedBox(height: 4),
-              _SliderRow(
-                label: 'Heure de début',
-                value: _startHour.toDouble(),
-                min: 0,
-                max: 23,
-                display: '${_startHour}h00',
-                onChanged: (v) {
-                  final h = v.round();
-                  setState(() {
-                    _startHour = h;
-                    if (_endHour <= _startHour) _endHour = _startHour;
-                  });
-                },
-              ),
-              _SliderRow(
-                label: 'Heure de fin',
-                value: _endHour.toDouble(),
-                min: 0,
-                max: 23,
-                display: '${_endHour}h00',
-                onChanged: (v) {
-                  final h = v.round();
-                  setState(() {
-                    _endHour = h;
-                    if (_startHour > _endHour) _startHour = _endHour;
-                  });
-                },
-              ),
-            ],
+  Widget _validateButton(String label, VoidCallback onPressed) => Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: GradientButton(
+          label: label,
+          gradient: VTheme.solarGradient,
+          shadows: VTheme.glowSolar,
+          onPressed: onPressed,
+        ),
+      );
 
-            const Divider(color: Color(0xFFFFE8D6)),
-            const SizedBox(height: 4),
+  Widget _buildHoursCard() {
+    return _settingsCard([
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text('Limiter les heures',
+            style: TextStyle(color: VTheme.warmDark)),
+        subtitle: Text(
+          _timeLimitEnabled
+              ? 'Entre ${_startHour}h00 et ${_endHour}h00'
+              : 'À toute heure de la journée',
+          style: TextStyle(color: VTheme.warmMuted, fontSize: 12),
+        ),
+        value: _timeLimitEnabled,
+        activeColor: VTheme.orange,
+        onChanged: (v) => setState(() => _timeLimitEnabled = v),
+      ),
+      if (_timeLimitEnabled) ...[
+        Divider(color: VTheme.hairline),
+        _SliderRow(
+          label: 'Heure de début',
+          value: _startHour.toDouble(),
+          min: 0,
+          max: 23,
+          display: '${_startHour}h00',
+          onChanged: (v) {
+            final h = v.round();
+            setState(() {
+              _startHour = h;
+              if (_endHour <= _startHour) _endHour = _startHour;
+            });
+          },
+        ),
+        _SliderRow(
+          label: 'Heure de fin',
+          value: _endHour.toDouble(),
+          min: 0,
+          max: 23,
+          display: '${_endHour}h00',
+          onChanged: (v) {
+            final h = v.round();
+            setState(() {
+              _endHour = h;
+              if (_startHour > _endHour) _startHour = _endHour;
+            });
+          },
+        ),
+      ],
+    ]);
+  }
 
-            // Min / Max par jour
-            Text('Notifications par jour',
-                style: TextStyle(
-                    color: VTheme.warmDark,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            _SliderRow(
-              label: 'Minimum',
-              value: _minCount.toDouble(),
-              min: 1,
-              max: 20,
-              display: '$_minCount',
-              onChanged: (v) {
-                final n = v.round();
-                setState(() {
-                  _minCount = n;
-                  if (_maxCount < _minCount) _maxCount = _minCount;
-                });
-              },
-            ),
-            _SliderRow(
-              label: 'Maximum',
-              value: _maxCount.toDouble(),
-              min: 1,
-              max: 20,
-              display: '$_maxCount',
-              onChanged: (v) {
-                final n = v.round();
-                setState(() {
-                  _maxCount = n;
-                  if (_minCount > _maxCount) _minCount = _maxCount;
-                });
-              },
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'Entre $_minCount et $_maxCount notifications aléatoires par jour',
-                style:
-                    TextStyle(color: VTheme.warmMuted, fontSize: 12),
-              ),
-            ),
-
-            const Divider(color: Color(0xFFFFE8D6)),
-            const SizedBox(height: 4),
-
-            // Min / Max de noms par photo
-            Text('Noms par photo',
-                style: TextStyle(
-                    color: VTheme.warmDark,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            _SliderRow(
-              label: 'Minimum',
-              value: _minNames.toDouble(),
-              min: 1,
-              max: 10,
-              display: '$_minNames',
-              onChanged: (v) {
-                final n = v.round();
-                setState(() {
-                  _minNames = n;
-                  if (_maxNames < _minNames) _maxNames = _minNames;
-                });
-              },
-            ),
-            _SliderRow(
-              label: 'Maximum',
-              value: _maxNames.toDouble(),
-              min: 1,
-              max: 10,
-              display: '$_maxNames',
-              onChanged: (v) {
-                final n = v.round();
-                setState(() {
-                  _maxNames = n;
-                  if (_minNames > _maxNames) _minNames = _maxNames;
-                });
-              },
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'Chaque photo à prendre avec $_minNames à $_maxNames personne(s)',
-                style: TextStyle(color: VTheme.warmMuted, fontSize: 12),
-              ),
-            ),
-          ],
+  Widget _buildCountCard() {
+    return _settingsCard([
+      const SizedBox(height: 8),
+      _SliderRow(
+        label: 'Minimum',
+        value: _minCount.toDouble(),
+        min: 1,
+        max: 20,
+        display: '$_minCount',
+        onChanged: (v) {
+          final n = v.round();
+          setState(() {
+            _minCount = n;
+            if (_maxCount < _minCount) _maxCount = _minCount;
+          });
+        },
+      ),
+      _SliderRow(
+        label: 'Maximum',
+        value: _maxCount.toDouble(),
+        min: 1,
+        max: 20,
+        display: '$_maxCount',
+        onChanged: (v) {
+          final n = v.round();
+          setState(() {
+            _maxCount = n;
+            if (_minCount > _maxCount) _minCount = _maxCount;
+          });
+        },
+      ),
+      Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(
+          'Entre $_minCount et $_maxCount notifications aléatoires par jour',
+          style: TextStyle(color: VTheme.warmMuted, fontSize: 12),
         ),
       ),
-    );
+    ]);
+  }
+
+  Widget _buildNamesCard() {
+    return _settingsCard([
+      const SizedBox(height: 8),
+      _SliderRow(
+        label: 'Minimum',
+        value: _minNames.toDouble(),
+        min: 1,
+        max: 10,
+        display: '$_minNames',
+        onChanged: (v) {
+          final n = v.round();
+          setState(() {
+            _minNames = n;
+            if (_maxNames < _minNames) _maxNames = _minNames;
+          });
+        },
+      ),
+      _SliderRow(
+        label: 'Maximum',
+        value: _maxNames.toDouble(),
+        min: 1,
+        max: 10,
+        display: '$_maxNames',
+        onChanged: (v) {
+          final n = v.round();
+          setState(() {
+            _maxNames = n;
+            if (_minNames > _maxNames) _minNames = _maxNames;
+          });
+        },
+      ),
+      Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(
+          'Chaque photo à prendre avec $_minNames à $_maxNames personne(s)',
+          style: TextStyle(color: VTheme.warmMuted, fontSize: 12),
+        ),
+      ),
+    ]);
   }
 
   String _fmtCountdown(int seconds) {
