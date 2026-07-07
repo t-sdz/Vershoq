@@ -27,7 +27,7 @@ class FeedScreen extends StatefulWidget {
   State<FeedScreen> createState() => _FeedScreenState();
 }
 
-class _FeedScreenState extends State<FeedScreen> {
+class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   Group? _group;
   GroupMember? _user;
   List<GroupMember> _members = [];
@@ -38,7 +38,20 @@ class _FeedScreenState extends State<FeedScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Au retour dans l'app : on recharge pour afficher la bannière « moment ».
+    if (state == AppLifecycleState.resumed) _load();
   }
 
   Future<void> _load() async {
@@ -335,7 +348,9 @@ class _FeedScreenState extends State<FeedScreen> {
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const SettingsScreen()));
+                        MaterialPageRoute(
+                            builder: (_) => const SettingsScreen()))
+                    .then((_) => _load());
               },
             ),
 
