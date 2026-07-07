@@ -51,16 +51,52 @@ Future<void> main() async {
   // Schedule random notifications on first launch
   await NotificationService.scheduleRandom();
 
-  // Check if app was launched by tapping a notification
-  final launchPayload = await NotificationService.getLaunchPayload();
+  // Ouvert en tapant une notif ? Sinon, un moment photo est-il en cours ?
+  String? initial = await NotificationService.getLaunchPayload();
+  if (initial == null &&
+      FirebaseAuth.instance.currentUser?.emailVerified == true) {
+    initial = await NotificationService.activeMomentLabel();
+  }
 
-  runApp(VershoqApp(initialPersonName: launchPayload));
+  runApp(VershoqApp(initialPersonName: initial));
 }
 
-class VershoqApp extends StatelessWidget {
+class VershoqApp extends StatefulWidget {
   final String? initialPersonName;
 
   const VershoqApp({super.key, this.initialPersonName});
+
+  @override
+  State<VershoqApp> createState() => _VershoqAppState();
+}
+
+class _VershoqAppState extends State<VershoqApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    // Au retour dans l'app : si un moment photo est en cours, on ouvre la caméra.
+    if (state != AppLifecycleState.resumed) return;
+    if (FirebaseAuth.instance.currentUser?.emailVerified != true) return;
+    final label = await NotificationService.activeMomentLabel();
+    if (label != null && label.isNotEmpty) {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (_) => CameraScreen(personName: label)),
+      );
+    }
+  }
+
+  String? get initialPersonName => widget.initialPersonName;
 
   @override
   Widget build(BuildContext context) {

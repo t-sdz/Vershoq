@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -23,6 +24,8 @@ class NotificationService {
   static const _channelName = 'Photos spontanées';
   static const _captureActionId = 'vershoq_capture';
   static const _iosCategoryId = 'vershoq_shot_category';
+  static const _momentsKey = 'vershoq_moments';
+  static const _consumedKey = 'vershoq_moment_consumed';
 
   static Future<void> init({
     required void Function(String personName) onTap,
@@ -147,6 +150,9 @@ class NotificationService {
     if (members.length < 2) return; // il faut au moins 2 personnes
 
     int id = 0;
+    // Moments enregistrés localement : permettent, si on ouvre l'app sans
+    // toucher la notif, de savoir qu'un moment photo est en cours.
+    final moments = <Map<String, dynamic>>[];
 
     for (int day = 0; day < 7; day++) {
       final base = now.add(Duration(days: day));
@@ -196,11 +202,41 @@ class NotificationService {
             .toList();
         if (targets.isEmpty) continue;
 
-        await _schedule(id++, scheduled, _joinNames(targets), durationSeconds);
+        final label = _joinNames(targets);
+        moments.add({
+          't': scheduled.millisecondsSinceEpoch,
+          'd': durationSeconds,
+          'l': label,
+        });
+        await _schedule(id++, scheduled, label, durationSeconds);
       }
     }
 
+    await prefs.setString(_momentsKey, jsonEncode(moments));
     debugPrint('NotificationService: scheduled $id notifications');
+  }
+
+  /// Renvoie le libellé du moment photo actuellement en cours (fenêtre du
+  /// compte à rebours non expirée) s'il n'a pas déjà été consommé, sinon null.
+  /// Sert à ouvrir directement la caméra quand on lance l'app.
+  static Future<String?> activeMomentLabel() async {
+    if (kIsWeb) return null;
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_momentsKey);
+    if (raw == null) return null;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final consumed = prefs.getInt(_consumedKey) ?? 0;
+    try {
+      for (final e in jsonDecode(raw) as List) {
+        final t = (e['t'] as num).toInt();
+        final d = (e['d'] as num).toInt();
+        if (nowMs >= t && nowMs <= t + d * 1000 && t != consumed) {
+          await prefs.setInt(_consumedKey, t);
+          return e['l'] as String;
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
   /// Hash stable et identique sur tous les appareils (pas String.hashCode).
