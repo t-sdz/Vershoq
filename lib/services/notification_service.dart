@@ -386,8 +386,13 @@ class NotificationService {
     }
     if (names.isEmpty) return;
     final shuffled = [...names]..shuffle(random);
-    final maxPick = shuffled.length < 3 ? shuffled.length : 3;
-    final count = 1 + random.nextInt(maxPick);
+
+    // Respecte le réglage min/max noms du groupe, borné par la taille.
+    final group = await GroupService.getCurrentGroup();
+    final maxTargets = shuffled.length;
+    final lo = (group?.notifMinNames ?? 1).clamp(1, maxTargets);
+    final hi = (group?.notifMaxNames ?? 3).clamp(lo, maxTargets);
+    final count = lo + random.nextInt(hi - lo + 1);
     final label = _joinNames(shuffled.take(count).toList());
     final prefs = await SharedPreferences.getInstance();
     final countdownSeconds = prefs.getInt('countdown_seconds') ?? 15;
