@@ -248,6 +248,47 @@ class NotificationService {
     return null;
   }
 
+  /// Comme activeMomentLabel mais SANS consommer (pour afficher une bannière).
+  static Future<String?> peekActiveMoment() async {
+    if (kIsWeb) return null;
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_momentsKey);
+    if (raw == null) return null;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    const windowMs = 5 * 60 * 1000;
+    var bestT = 0;
+    String? best;
+    try {
+      for (final e in jsonDecode(raw) as List) {
+        final t = (e['t'] as num).toInt();
+        if (nowMs >= t && nowMs <= t + windowMs && t > bestT) {
+          bestT = t;
+          best = e['l'] as String;
+        }
+      }
+    } catch (_) {}
+    return best;
+  }
+
+  /// Enregistre un moment « maintenant » (utilisé par l'envoi immédiat) pour
+  /// que la caméra/bannière s'active tout de suite.
+  static Future<void> _addMoment(String label, int durationSeconds) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = <dynamic>[];
+    final raw = prefs.getString(_momentsKey);
+    if (raw != null) {
+      try {
+        list.addAll(jsonDecode(raw) as List);
+      } catch (_) {}
+    }
+    list.add({
+      't': DateTime.now().millisecondsSinceEpoch,
+      'd': durationSeconds,
+      'l': label,
+    });
+    await prefs.setString(_momentsKey, jsonEncode(list));
+  }
+
   /// Hash stable et identique sur tous les appareils (pas String.hashCode).
   static int _stableHash(String s) {
     int h = 0;
@@ -347,7 +388,12 @@ class NotificationService {
     final shuffled = [...names]..shuffle(random);
     final maxPick = shuffled.length < 3 ? shuffled.length : 3;
     final count = 1 + random.nextInt(maxPick);
-    await sendTestNotification(_joinNames(shuffled.take(count).toList()));
+    final label = _joinNames(shuffled.take(count).toList());
+    final prefs = await SharedPreferences.getInstance();
+    final countdownSeconds = prefs.getInt('countdown_seconds') ?? 15;
+    // Enregistre le moment → l'app ouvrira la caméra / affichera la bannière.
+    await _addMoment(label, countdownSeconds > 0 ? countdownSeconds : 120);
+    await sendTestNotification(label);
   }
 
   /// Sends an immediate test notification with a random name.

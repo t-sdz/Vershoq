@@ -15,6 +15,7 @@ import '../services/storage_service.dart';
 import '../services/theme_service.dart';
 import '../theme/v_theme.dart';
 import 'account_screen.dart';
+import 'camera_screen.dart';
 import 'gallery_screen.dart';
 import 'groups_screen.dart';
 import 'settings_screen.dart';
@@ -31,6 +32,7 @@ class _FeedScreenState extends State<FeedScreen> {
   GroupMember? _user;
   List<GroupMember> _members = [];
   List<JoinedGroup> _joined = [];
+  String? _activeMoment;
   bool _loading = true;
 
   @override
@@ -44,6 +46,7 @@ class _FeedScreenState extends State<FeedScreen> {
     final group = await GroupService.refreshCurrentGroup();
     final user  = await GroupService.getCurrentUser();
     final joined = await GroupService.getJoinedGroups();
+    final activeMoment = await NotificationService.peekActiveMoment();
     List<GroupMember> members = [];
     if (group != null) {
       try {
@@ -58,6 +61,7 @@ class _FeedScreenState extends State<FeedScreen> {
         _user    = user;
         _members = members;
         _joined  = joined;
+        _activeMoment = activeMoment;
         _loading = false;
       });
     }
@@ -78,13 +82,35 @@ class _FeedScreenState extends State<FeedScreen> {
         backgroundColor: VTheme.bgWarm,
         appBar: _buildAppBar(),
         drawer: _buildDrawer(),
-        body: _loading
-            ? Center(child: CircularProgressIndicator(color: VTheme.orange))
-            : _group != null
-                ? _GroupFeed(groupId: _group!.id, userEmail: _user?.email ?? '')
-                : _LocalFeed(onReload: _load),
+        body: Stack(
+          children: [
+            _loading
+                ? Center(child: CircularProgressIndicator(color: VTheme.orange))
+                : _group != null
+                    ? _GroupFeed(
+                        groupId: _group!.id, userEmail: _user?.email ?? '')
+                    : _LocalFeed(onReload: _load),
+            if (!_loading && _activeMoment != null)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 60,
+                left: 16,
+                right: 16,
+                child: _MomentBanner(
+                  names: _activeMoment!,
+                  onTap: () => _openCamera(_activeMoment!),
+                ),
+              ),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _openCamera(String names) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => CameraScreen(personName: names)),
+    );
+    _load();
   }
 
   AppBar _buildAppBar() {
@@ -781,6 +807,51 @@ class _BottomGradient extends StatelessWidget {
             end: Alignment.topCenter,
             colors: [Colors.black87, Colors.transparent],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MomentBanner extends StatelessWidget {
+  final String names;
+  final VoidCallback onTap;
+  const _MomentBanner({required this.names, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        decoration: BoxDecoration(
+          gradient: VTheme.solarGradient,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: VTheme.glowSolar,
+        ),
+        child: Row(
+          children: [
+            const Text('📸', style: TextStyle(fontSize: 26)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('C\'est le moment !',
+                      style: VTheme.grotesk(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800)),
+                  Text('Prends ta photo avec $names',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 13)),
+                ],
+              ),
+            ),
+            const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 26),
+          ],
         ),
       ),
     );
