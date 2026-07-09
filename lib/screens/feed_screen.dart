@@ -11,6 +11,7 @@ import '../models/photo_entry.dart';
 import '../services/group_photo_service.dart';
 import '../services/group_service.dart';
 import '../services/notification_service.dart';
+import '../services/push_service.dart';
 import '../services/storage_service.dart';
 import '../services/theme_service.dart';
 import '../theme/v_theme.dart';
@@ -59,6 +60,8 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     final group = await GroupService.refreshCurrentGroup();
     final user  = await GroupService.getCurrentUser();
     final joined = await GroupService.getJoinedGroups();
+    // Abonne l'appareil aux notifs push de tous ses groupes.
+    PushService.subscribeGroups(joined.map((j) => j.group.id).toList());
     final activeMoment = await NotificationService.peekActiveMoment();
     List<GroupMember> members = [];
     if (group != null) {

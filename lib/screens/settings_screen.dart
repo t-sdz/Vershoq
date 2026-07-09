@@ -357,15 +357,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.send_outlined, color: VTheme.orange),
-              title: Text('Envoyer une notif maintenant',
+              title: Text('Envoyer une notif à tout le groupe',
                   style: TextStyle(color: VTheme.warmDark)),
-              subtitle: Text('Déclenche un moment photo tout de suite',
+              subtitle: Text('Notifie tous les membres en même temps',
                   style: TextStyle(color: VTheme.warmMuted, fontSize: 12)),
               onTap: () async {
-                await NotificationService.sendImmediate();
+                // Push serveur (tout le groupe, simultané) si configuré,
+                // sinon notif locale sur cet appareil.
+                var sent = false;
+                if (_groupId != null) {
+                  sent = await PushService.sendGroupPush(
+                    groupId: _groupId!,
+                    title: "📸 Snap'It",
+                    body: "C'est le moment ! Prends vite ta photo.",
+                  );
+                }
+                if (!sent) await NotificationService.sendImmediate();
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Notif envoyée !')));
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(sent
+                          ? 'Notif envoyée à tout le groupe !'
+                          : 'Notif envoyée (sur cet appareil)')));
                 }
               },
             ),

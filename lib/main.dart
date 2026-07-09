@@ -10,6 +10,7 @@ import 'screens/camera_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/verify_email_screen.dart';
 import 'services/notification_service.dart';
+import 'services/push_service.dart';
 import 'services/theme_service.dart';
 import 'theme/v_theme.dart';
 
@@ -47,6 +48,9 @@ Future<void> main() async {
       );
     },
   );
+
+  // Notifications push (FCM via serveur externe).
+  await PushService.init();
 
   // Schedule random notifications on first launch
   await NotificationService.scheduleRandom();

@@ -21,6 +21,7 @@ dependencies:
   google_sign_in: ^6.2.1
   cloud_firestore: ^5.0.0
   firebase_messaging: ^15.2.10
+  http: ^1.1.0
 
   # Notifications
   flutter_local_notifications: ^19.4.0

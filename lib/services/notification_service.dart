@@ -248,6 +248,55 @@ class NotificationService {
     return null;
   }
 
+  /// Calcule, pour CET appareil, les personnes à photographier (les autres
+  /// membres, jamais soi), en respectant le min/max noms du groupe. Basé sur
+  /// le cache local (fonctionne aussi dans l'isolat d'arrière-plan).
+  static Future<String?> buildMyMomentLabel() async {
+    final rng = Random();
+    List<String> names = await GroupService.getCachedMemberNames();
+    final self =
+        (await GroupService.getCurrentUser())?.username.trim().toLowerCase();
+    if (self != null && self.isNotEmpty) {
+      names = names.where((n) => n.trim().toLowerCase() != self).toList();
+    }
+    if (names.isEmpty) return null;
+    final group = await GroupService.getCurrentGroup();
+    final shuffled = [...names]..shuffle(rng);
+    final lo = (group?.notifMinNames ?? 1).clamp(1, shuffled.length);
+    final hi = (group?.notifMaxNames ?? 3).clamp(lo, shuffled.length);
+    final count = lo + rng.nextInt(hi - lo + 1);
+    return _joinNames(shuffled.take(count).toList());
+  }
+
+  /// Enregistre un moment reçu par push (FCM) → bannière + caméra.
+  static Future<void> registerRemoteMoment(String label) async {
+    if (label.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final c = prefs.getInt('countdown_seconds') ?? 15;
+    await _addMoment(label, c > 0 ? c : 120);
+  }
+
+  /// Affiche une notification (utilisé quand un push arrive app ouverte).
+  static Future<void> showRemote(
+      String title, String body, String label) async {
+    if (kIsWeb) return;
+    await _plugin.show(
+      9998,
+      title,
+      body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channelId,
+          _channelName,
+          importance: Importance.max,
+          priority: Priority.high,
+        ),
+        iOS: const DarwinNotificationDetails(),
+      ),
+      payload: label,
+    );
+  }
+
   /// Comme activeMomentLabel mais SANS consommer (pour afficher une bannière).
   static Future<String?> peekActiveMoment() async {
     if (kIsWeb) return null;
