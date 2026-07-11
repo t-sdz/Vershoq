@@ -114,12 +114,31 @@ class NotificationService {
     await _plugin.cancelAll();
   }
 
+  /// Durée pendant laquelle on peut encore prendre la photo après le début du
+  /// moment. Sans compte à rebours (pas de pression), on laisse tout le temps
+  /// (6 h). Avec compte à rebours, au moins 15 min pour ne pas rater le coche.
+  static Future<int> _momentWindowMs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool('countdown_enabled') ?? false;
+    final c = prefs.getInt('countdown_seconds') ?? 15;
+    if (enabled && c > 0) {
+      return max(c * 1000, 15 * 60 * 1000);
+    }
+    return 6 * 60 * 60 * 1000;
+  }
+
   /// Cancels all pending notifications and schedules fresh random ones.
   static Future<void> scheduleRandom() async {
     if (kIsWeb) return;
     final prefs = await SharedPreferences.getInstance();
 
-    await _plugin.cancelAll();
+    // On annule UNIQUEMENT les notifs planifiées (à venir), pas celles déjà
+    // affichées dans la barre — sinon ouvrir l'app effacerait la notif push
+    // qu'on vient de recevoir.
+    final pending = await _plugin.pendingNotificationRequests();
+    for (final p in pending) {
+      await _plugin.cancel(p.id);
+    }
 
     // Les notifications sont liées au groupe : sans groupe courant, on
     // n'en planifie aucune (corrige les notifs fantômes après un départ).
@@ -244,10 +263,8 @@ class NotificationService {
     if (raw == null) return null;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     final consumed = prefs.getInt(_consumedKey) ?? 0;
+    final windowMs = await _momentWindowMs();
     try {
-      // Fenêtre pour ouvrir l'app et prendre la photo : au moins 5 min
-      // (indépendante du court compte à rebours affiché dans la notif).
-      const windowMs = 5 * 60 * 1000;
       // On prend le moment le plus récent encore actif.
       var bestT = 0;
       String? bestLabel;
@@ -372,7 +389,7 @@ class NotificationService {
     final raw = prefs.getString(_momentsKey);
     if (raw == null) return null;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
-    const windowMs = 5 * 60 * 1000;
+    final windowMs = await _momentWindowMs();
     var bestT = 0;
     String? best;
     try {
