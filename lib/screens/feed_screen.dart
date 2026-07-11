@@ -40,14 +40,19 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    NotificationService.momentTick.addListener(_onMomentTick);
     _load();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    NotificationService.momentTick.removeListener(_onMomentTick);
     super.dispose();
   }
+
+  // Un push est arrivé app ouverte -> rafraîchit la bannière tout de suite.
+  void _onMomentTick() => _load();
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {

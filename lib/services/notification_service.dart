@@ -20,6 +20,10 @@ class NotificationService {
   static final _plugin = FlutterLocalNotificationsPlugin();
   static void Function(String personName)? _onTap;
 
+  /// Incrémenté chaque fois qu'un moment est armé (push reçu app ouverte, ou
+  /// envoi admin). Le feed l'écoute pour afficher la bannière immédiatement.
+  static final ValueNotifier<int> momentTick = ValueNotifier<int>(0);
+
   static const _channelId = 'vershoq_shots';
   static const _channelName = 'Photos spontanées';
   static const _captureActionId = 'vershoq_capture';
@@ -233,6 +237,9 @@ class NotificationService {
   static Future<String?> activeMomentLabel() async {
     if (kIsWeb) return null;
     final prefs = await SharedPreferences.getInstance();
+    // Relit le disque : le moment a pu être écrit par l'isolat d'arrière-plan
+    // (push reçu app fermée) que l'app principale ne voit pas sinon.
+    await prefs.reload();
     final raw = prefs.getString(_momentsKey);
     if (raw == null) return null;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
@@ -330,6 +337,8 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     final c = prefs.getInt('countdown_seconds') ?? 15;
     await _addMoment(label, c > 0 ? c : 120);
+    // Réveille le feed s'il est ouvert (isolat principal uniquement).
+    momentTick.value++;
   }
 
   /// Affiche une notification (utilisé quand un push arrive app ouverte).
@@ -357,6 +366,9 @@ class NotificationService {
   static Future<String?> peekActiveMoment() async {
     if (kIsWeb) return null;
     final prefs = await SharedPreferences.getInstance();
+    // Relit le disque : le moment a pu être écrit par l'isolat d'arrière-plan
+    // (push reçu app fermée) que l'app principale ne voit pas sinon.
+    await prefs.reload();
     final raw = prefs.getString(_momentsKey);
     if (raw == null) return null;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
