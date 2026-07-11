@@ -78,10 +78,21 @@ class NotificationService {
     );
 
     // Request Android 13+ permission
-    await _plugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
+    final androidImpl = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await androidImpl?.requestNotificationsPermission();
+
+    // Crée explicitement le canal pour que les push Firebase (reçus quand
+    // l'app est fermée) aient un canal existant à utiliser, sinon Android les
+    // ignore silencieusement.
+    await androidImpl?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _channelId,
+        _channelName,
+        description: 'Notifications pour prendre une photo avec le groupe',
+        importance: Importance.max,
+      ),
+    );
   }
 
   /// Returns the notification payload if the app was launched by tapping one.

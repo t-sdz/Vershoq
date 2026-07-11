@@ -373,7 +373,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     body: "C'est le moment ! Prends vite ta photo.",
                   );
                 }
-                if (!sent) await NotificationService.sendImmediate();
+                if (sent) {
+                  // L'expéditeur fait partie du groupe : arme aussi sa propre
+                  // bannière « moment » tout de suite (sans attendre le renvoi
+                  // FCM à soi-même, qui peut tarder au premier abonnement).
+                  final label =
+                      await NotificationService.buildMyMomentLabel() ?? '';
+                  await NotificationService.registerRemoteMoment(label);
+                } else {
+                  await NotificationService.sendImmediate();
+                }
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                       content: Text(sent

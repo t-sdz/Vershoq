@@ -19,6 +19,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 /// Notifications push (FCM) via le serveur externe (Deno Deploy).
 class PushService {
+  /// Appelé quand l'utilisateur TAPE une notif push (ouvre la caméra).
+  static void Function(String label)? onOpen;
+
   static Future<void> init() async {
     if (kIsWeb) return;
     try {
@@ -38,8 +41,31 @@ class PushService {
           label,
         );
       });
+
+      // App en arrière-plan puis on TAPE la notif système : ouvre la caméra.
+      FirebaseMessaging.onMessageOpenedApp.listen((m) async {
+        final label = await NotificationService.buildMyMomentLabel() ?? '';
+        await NotificationService.registerRemoteMoment(label);
+        onOpen?.call(label);
+      });
     } catch (e) {
       debugPrint('PushService.init: $e');
+    }
+  }
+
+  /// Si l'app a été lancée (état tué) en tapant une notif push, renvoie le
+  /// label du moment (les prénoms). Sinon null.
+  static Future<String?> initialTapLabel() async {
+    if (kIsWeb) return null;
+    try {
+      final msg = await FirebaseMessaging.instance.getInitialMessage();
+      if (msg == null) return null;
+      final label = await NotificationService.buildMyMomentLabel() ?? '';
+      await NotificationService.registerRemoteMoment(label);
+      return label;
+    } catch (e) {
+      debugPrint('PushService.initialTapLabel: $e');
+      return null;
     }
   }
 

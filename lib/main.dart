@@ -50,13 +50,23 @@ Future<void> main() async {
   );
 
   // Notifications push (FCM via serveur externe).
+  // Tap sur une notif push quand l'app est en arrière-plan -> ouvre la caméra.
+  PushService.onOpen = (label) {
+    navigatorKey.currentState?.push(
+      MaterialPageRoute(
+        builder: (_) => CameraScreen(personName: label),
+      ),
+    );
+  };
   await PushService.init();
 
   // Schedule random notifications on first launch
   await NotificationService.scheduleRandom();
 
-  // Ouvert en tapant une notif ? Sinon, un moment photo est-il en cours ?
+  // Ouvert en tapant une notif (locale) ? Ou une notif push (app tuée) ?
+  // Sinon, un moment photo est-il encore en cours ?
   String? initial = await NotificationService.getLaunchPayload();
+  initial ??= await PushService.initialTapLabel();
   if (initial == null &&
       FirebaseAuth.instance.currentUser?.emailVerified == true) {
     initial = await NotificationService.activeMomentLabel();

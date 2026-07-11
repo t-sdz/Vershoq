@@ -75,6 +75,13 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Canal de notification par défaut pour les push Firebase (FCM).
+             Doit correspondre au canal créé dans NotificationService. Sans ça,
+             les notifs reçues app fermée peuvent être ignorées silencieusement. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="vershoq_shots" />
     </application>
 
     <!-- Required for queries on Android 11+ -->
