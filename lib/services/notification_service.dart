@@ -280,8 +280,9 @@ class NotificationService {
   }
 
   /// Enregistre un moment reçu par push (FCM) → bannière + caméra.
+  /// Le libellé peut être vide (le téléphone n'a pas encore le cache des
+  /// prénoms) : on arme quand même le moment pour que la bannière apparaisse.
   static Future<void> registerRemoteMoment(String label) async {
-    if (label.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     final c = prefs.getInt('countdown_seconds') ?? 15;
     await _addMoment(label, c > 0 ? c : 120);

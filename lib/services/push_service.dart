@@ -13,8 +13,10 @@ import 'notification_service.dart';
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Chaque appareil calcule SES propres noms (les autres membres).
   // FCM affiche déjà la notification système ; on arme juste la bannière/caméra.
-  final label = await NotificationService.buildMyMomentLabel();
-  if (label != null) await NotificationService.registerRemoteMoment(label);
+  // Même si les prénoms ne sont pas encore en cache, on arme le moment (label
+  // vide) pour que la bannière apparaisse quand l'utilisateur ouvre l'app.
+  final label = await NotificationService.buildMyMomentLabel() ?? '';
+  await NotificationService.registerRemoteMoment(label);
 }
 
 /// Notifications push (FCM) via le serveur externe (Deno Deploy).

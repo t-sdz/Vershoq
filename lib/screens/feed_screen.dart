@@ -860,7 +860,10 @@ class _MomentBanner extends StatelessWidget {
                           color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.w800)),
-                  Text('Prends ta photo avec $names',
+                  Text(
+                      names.trim().isEmpty
+                          ? 'Prends vite ta photo avec le groupe'
+                          : 'Prends ta photo avec $names',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(

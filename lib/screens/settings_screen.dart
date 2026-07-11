@@ -374,12 +374,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   );
                 }
                 if (sent) {
-                  // L'expéditeur fait partie du groupe : arme aussi sa propre
-                  // bannière « moment » tout de suite (sans attendre le renvoi
-                  // FCM à soi-même, qui peut tarder au premier abonnement).
+                  // L'expéditeur fait partie du groupe : arme sa bannière ET
+                  // affiche une notif locale tout de suite (sans attendre le
+                  // renvoi FCM à soi-même, qui peut tarder au 1er abonnement).
+                  // Même id de notif (9998) que le renvoi FCM -> pas de doublon.
                   final label =
                       await NotificationService.buildMyMomentLabel() ?? '';
                   await NotificationService.registerRemoteMoment(label);
+                  await NotificationService.showRemote(
+                    "📸 Snap'It",
+                    label.trim().isEmpty
+                        ? "C'est le moment ! Prends ta photo."
+                        : "Prends vite ta photo avec $label !",
+                    label,
+                  );
                 } else {
                   await NotificationService.sendImmediate();
                 }
