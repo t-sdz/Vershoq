@@ -11,12 +11,21 @@ import 'notification_service.dart';
 /// Doit être une fonction top-level.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Chaque appareil calcule SES propres noms (les autres membres).
+  // Chaque appareil calcule SES propres noms (les autres membres) à partir de
+  // la graine commune envoyée par le serveur -> appariement réciproque.
   // FCM affiche déjà la notification système ; on arme juste la bannière/caméra.
   // Même si les prénoms ne sont pas encore en cache, on arme le moment (label
   // vide) pour que la bannière apparaisse quand l'utilisateur ouvre l'app.
-  final label = await NotificationService.buildMyMomentLabel() ?? '';
+  final label =
+      await NotificationService.buildMyMomentLabel(seed: _seedOf(message)) ?? '';
   await NotificationService.registerRemoteMoment(label);
+}
+
+/// Lit la graine commune (data.seed) d'un push, ou null si absente.
+int? _seedOf(RemoteMessage message) {
+  final raw = message.data['seed'];
+  if (raw == null) return null;
+  return int.tryParse(raw.toString());
 }
 
 /// Notifications push (FCM) via le serveur externe (Deno Deploy).
@@ -33,7 +42,8 @@ class PushService {
 
       // App au premier plan : on affiche la notif + on arme la bannière.
       FirebaseMessaging.onMessage.listen((m) async {
-        final label = await NotificationService.buildMyMomentLabel() ?? '';
+        final label =
+            await NotificationService.buildMyMomentLabel(seed: _seedOf(m)) ?? '';
         await NotificationService.registerRemoteMoment(label);
         await NotificationService.showRemote(
           "📸 Snap'It",
@@ -46,7 +56,8 @@ class PushService {
 
       // App en arrière-plan puis on TAPE la notif système : ouvre la caméra.
       FirebaseMessaging.onMessageOpenedApp.listen((m) async {
-        final label = await NotificationService.buildMyMomentLabel() ?? '';
+        final label =
+            await NotificationService.buildMyMomentLabel(seed: _seedOf(m)) ?? '';
         await NotificationService.registerRemoteMoment(label);
         onOpen?.call(label);
       });
@@ -62,7 +73,8 @@ class PushService {
     try {
       final msg = await FirebaseMessaging.instance.getInitialMessage();
       if (msg == null) return null;
-      final label = await NotificationService.buildMyMomentLabel() ?? '';
+      final label =
+          await NotificationService.buildMyMomentLabel(seed: _seedOf(msg)) ?? '';
       await NotificationService.registerRemoteMoment(label);
       return label;
     } catch (e) {
@@ -92,6 +104,7 @@ class PushService {
   /// Renvoie true si le serveur a accepté.
   static Future<bool> sendGroupPush({
     required String groupId,
+    int? seed,
     String? label,
     String? title,
     String? body,
@@ -104,6 +117,7 @@ class PushService {
         body: jsonEncode({
           'secret': AppConfig.pushSecret,
           'groupId': groupId,
+          if (seed != null) 'seed': seed,
           if (label != null) 'label': label,
           if (title != null) 'title': title,
           if (body != null) 'body': body,

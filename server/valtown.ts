@@ -99,6 +99,8 @@ export default async function (req: Request): Promise<Response> {
         data: {
           label: String(body.label || ""),
           groupId: String(body.groupId),
+          // Graine commune : tous les téléphones forment le même appariement.
+          seed: String(body.seed ?? ""),
         },
         android: {
           priority: "HIGH",

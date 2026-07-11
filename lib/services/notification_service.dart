@@ -260,23 +260,67 @@ class NotificationService {
   }
 
   /// Calcule, pour CET appareil, les personnes à photographier (les autres
-  /// membres, jamais soi), en respectant le min/max noms du groupe. Basé sur
-  /// le cache local (fonctionne aussi dans l'isolat d'arrière-plan).
-  static Future<String?> buildMyMomentLabel() async {
-    final rng = Random();
-    List<String> names = await GroupService.getCachedMemberNames();
+  /// membres de MON groupe, jamais moi). Basé sur le cache local (fonctionne
+  /// aussi dans l'isolat d'arrière-plan).
+  ///
+  /// Si [seed] est fourni (graine commune envoyée par le serveur dans le
+  /// push), TOUS les téléphones forment EXACTEMENT les mêmes groupes à partir
+  /// de la liste triée pareil partout : l'appariement est donc réciproque
+  /// (Tess voit « Max », Max voit « Tess »). Sans graine, tirage aléatoire.
+  static Future<String?> buildMyMomentLabel({int? seed}) async {
+    final all = await GroupService.getCachedMemberNames();
     final self =
         (await GroupService.getCurrentUser())?.username.trim().toLowerCase();
-    if (self != null && self.isNotEmpty) {
-      names = names.where((n) => n.trim().toLowerCase() != self).toList();
+
+    if (seed == null) {
+      // Ancien comportement (pas de graine) : tirage local aléatoire.
+      final rng = Random();
+      var names = all;
+      if (self != null && self.isNotEmpty) {
+        names = names.where((n) => n.trim().toLowerCase() != self).toList();
+      }
+      if (names.isEmpty) return null;
+      final group = await GroupService.getCurrentGroup();
+      final shuffled = [...names]..shuffle(rng);
+      final lo = (group?.notifMinNames ?? 1).clamp(1, shuffled.length);
+      final hi = (group?.notifMaxNames ?? 3).clamp(lo, shuffled.length);
+      final count = lo + rng.nextInt(hi - lo + 1);
+      return _joinNames(shuffled.take(count).toList());
     }
-    if (names.isEmpty) return null;
+
+    // Appariement déterministe : liste COMPLÈTE (moi inclus), triée pareil
+    // sur tous les appareils, mélangée avec la MÊME graine, puis découpée en
+    // groupes de taille identique. Chacun cherche son groupe et renvoie les
+    // AUTRES membres de son groupe.
+    final full = [...all];
+    if (self != null && self.isNotEmpty &&
+        !full.any((n) => n.trim().toLowerCase() == self)) {
+      // Sécurité : si le cache n'inclut pas mon nom, je m'ajoute.
+      final me = (await GroupService.getCurrentUser())?.username.trim();
+      if (me != null && me.isNotEmpty) full.add(me);
+    }
+    // Tri stable identique partout (par nom en minuscules).
+    full.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    if (full.length < 2 || self == null || self.isEmpty) return null;
+
     final group = await GroupService.getCurrentGroup();
-    final shuffled = [...names]..shuffle(rng);
-    final lo = (group?.notifMinNames ?? 1).clamp(1, shuffled.length);
-    final hi = (group?.notifMaxNames ?? 3).clamp(lo, shuffled.length);
-    final count = lo + rng.nextInt(hi - lo + 1);
-    return _joinNames(shuffled.take(count).toList());
+    final rng = Random(seed);
+    // Taille de groupe = (nb de noms par photo) + 1 (pour m'inclure), tirée de
+    // façon déterministe dans [min+1, max+1], bornée par la taille du groupe.
+    final lo = ((group?.notifMinNames ?? 1) + 1).clamp(2, full.length);
+    final hi = ((group?.notifMaxNames ?? 3) + 1).clamp(lo, full.length);
+    final clusterSize = lo + rng.nextInt(hi - lo + 1);
+    final ordered = [...full]..shuffle(rng);
+
+    final idx = ordered.indexWhere((n) => n.trim().toLowerCase() == self);
+    if (idx < 0) return null;
+    final start = (idx ~/ clusterSize) * clusterSize;
+    final end = min(start + clusterSize, ordered.length);
+    final cluster = ordered.sublist(start, end);
+    final others =
+        cluster.where((n) => n.trim().toLowerCase() != self).toList();
+    if (others.isEmpty) return null;
+    return _joinNames(others);
   }
 
   /// Enregistre un moment reçu par push (FCM) → bannière + caméra.

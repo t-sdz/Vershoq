@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -365,10 +367,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () async {
                 // Push serveur (tout le groupe, simultané) si configuré,
                 // sinon notif locale sur cet appareil.
+                // Graine COMMUNE : tous les téléphones (dont l'expéditeur)
+                // forment le même appariement -> réciproque (Tess<->Max).
+                final seed = Random().nextInt(0x7fffffff);
                 var sent = false;
                 if (_groupId != null) {
                   sent = await PushService.sendGroupPush(
                     groupId: _groupId!,
+                    seed: seed,
                     title: "📸 Snap'It",
                     body: "C'est le moment ! Prends vite ta photo.",
                   );
@@ -378,8 +384,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   // affiche une notif locale tout de suite (sans attendre le
                   // renvoi FCM à soi-même, qui peut tarder au 1er abonnement).
                   // Même id de notif (9998) que le renvoi FCM -> pas de doublon.
+                  // MÊME graine que les autres -> même appariement.
                   final label =
-                      await NotificationService.buildMyMomentLabel() ?? '';
+                      await NotificationService.buildMyMomentLabel(seed: seed) ??
+                          '';
                   await NotificationService.registerRemoteMoment(label);
                   await NotificationService.showRemote(
                     "📸 Snap'It",
