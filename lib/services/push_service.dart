@@ -5,7 +5,17 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../config.dart';
+import 'group_service.dart';
 import 'notification_service.dart';
+
+/// Rafraîchit la config du groupe (dont les prénoms ajoutés par l'admin) avant
+/// de calculer l'appariement, pour que tous les téléphones utilisent la même
+/// liste et restent réciproques. Ignoré si hors-ligne (garde le cache).
+Future<void> _refreshGroupQuietly() async {
+  try {
+    await GroupService.refreshCurrentGroup();
+  } catch (_) {}
+}
 
 /// Handler des messages reçus quand l'app est en arrière-plan / fermée.
 /// Doit être une fonction top-level.
@@ -47,6 +57,7 @@ class PushService {
 
       // App au premier plan : on affiche la notif + on arme la bannière.
       FirebaseMessaging.onMessage.listen((m) async {
+        await _refreshGroupQuietly();
         final label =
             await NotificationService.buildMyMomentLabel(seed: _seedOf(m)) ?? '';
         await NotificationService.registerRemoteMoment(label);
@@ -61,6 +72,7 @@ class PushService {
 
       // App en arrière-plan puis on TAPE la notif système : ouvre la caméra.
       FirebaseMessaging.onMessageOpenedApp.listen((m) async {
+        await _refreshGroupQuietly();
         final label =
             await NotificationService.buildMyMomentLabel(seed: _seedOf(m)) ?? '';
         await NotificationService.registerRemoteMoment(label);
@@ -78,6 +90,7 @@ class PushService {
     try {
       final msg = await FirebaseMessaging.instance.getInitialMessage();
       if (msg == null) return null;
+      await _refreshGroupQuietly();
       final label =
           await NotificationService.buildMyMomentLabel(seed: _seedOf(msg)) ?? '';
       await NotificationService.registerRemoteMoment(label);

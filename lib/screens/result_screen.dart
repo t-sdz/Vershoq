@@ -22,6 +22,10 @@ class ResultScreen extends StatelessWidget {
           Image.file(
             File(entry.localPath),
             fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const Center(
+              child: Icon(Icons.broken_image_outlined,
+                  color: Colors.white38, size: 64),
+            ),
           ),
 
           // Dark overlay at bottom

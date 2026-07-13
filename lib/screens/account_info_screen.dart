@@ -84,7 +84,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
         });
       }
     } catch (e) {
-      setState(() => _error = 'Erreur : $e');
+      if (mounted) setState(() => _error = 'Erreur : $e');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -113,7 +113,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
       _passwordCtrl.clear();
       if (mounted) setState(() => _info = 'Mot de passe mis à jour !');
     } on AuthException catch (e) {
-      setState(() => _error = e.message);
+      if (mounted) setState(() => _error = e.message);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -174,15 +174,19 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
     });
     try {
       final user = AuthService.currentUser;
-      // Nettoyage AVANT de supprimer l'utilisateur (les règles Firestore
-      // exigent d'être authentifié).
+      // 1. Réauthentification D'ABORD : si elle échoue ou est annulée, rien
+      //    n'est supprimé (sinon on se retrouvait avec un compte vidé mais
+      //    toujours vivant).
+      await AuthService.reauthenticate(currentPassword: pwd);
+      // 2. Nettoyage Firestore (on est encore authentifié).
       if (user?.email != null) {
         await GroupService.leaveAllGroups(user!.email!);
       }
       if (user != null) {
         await UserProfileService.deleteProfile(user.uid);
       }
-      await AuthService.deleteAccount(currentPassword: pwd);
+      // 3. Suppression du compte Auth en dernier.
+      await AuthService.deleteCurrentUser();
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -190,15 +194,19 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
         );
       }
     } on AuthException catch (e) {
-      setState(() {
-        _saving = false;
-        _error = e.message;
-      });
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = e.message;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _saving = false;
-        _error = 'Erreur : $e';
-      });
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = 'Erreur : $e';
+        });
+      }
     }
   }
 

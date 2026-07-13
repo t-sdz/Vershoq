@@ -181,8 +181,9 @@ class NotificationService {
     final durationSeconds = countdownSeconds > 0 ? countdownSeconds : 120;
 
     final now = DateTime.now();
-    final selfEmail =
-        (await GroupService.getCurrentUser())?.email.trim().toLowerCase() ?? '';
+    final selfUser = await GroupService.getCurrentUser();
+    final selfEmail = selfUser?.email.trim().toLowerCase() ?? '';
+    final selfUsername = selfUser?.username.trim().toLowerCase() ?? '';
 
     // Liste complète des membres, TRIÉE (identique sur tous les téléphones →
     // moments synchronisés sans serveur). Repli sur le cache si hors-ligne.
@@ -194,10 +195,18 @@ class NotificationService {
     }
     if (members.isEmpty) {
       final cached = await GroupService.getCachedMemberNames();
-      members = cached
-          .map((n) => GroupMember(
-              username: n, email: n.trim().toLowerCase(), joinedAt: now))
-          .toList();
+      members = cached.map((n) {
+        // Repli hors-ligne : on donne à MON nom mon vrai email, sinon le test
+        // « suis-je dans le moment ? » (basé sur l'email) ne matcherait jamais
+        // et aucune notif ne serait planifiée.
+        final isSelf =
+            selfUsername.isNotEmpty && n.trim().toLowerCase() == selfUsername;
+        return GroupMember(
+          username: n,
+          email: isSelf ? selfEmail : n.trim().toLowerCase(),
+          joinedAt: now,
+        );
+      }).toList();
     }
     // Prénoms ajoutés par l'admin : ajoutés comme « cibles » possibles (email
     // fictif « extra:… » qui ne correspond à personne → jamais notifiés eux-

@@ -85,8 +85,9 @@ class AuthService {
 
   static bool get isEmailVerified => _auth.currentUser?.emailVerified ?? false;
 
-  /// Supprime définitivement le compte (réauthentification incluse).
-  static Future<void> deleteAccount({String? currentPassword}) async {
+  /// Réauthentifie l'utilisateur (Google ou mot de passe). À appeler AVANT de
+  /// supprimer quoi que ce soit : si ça échoue/est annulé, rien n'est détruit.
+  static Future<void> reauthenticate({String? currentPassword}) async {
     final user = _auth.currentUser;
     if (user == null) throw AuthException('Non connecté.');
     try {
@@ -107,10 +108,27 @@ class AuthService {
         );
         await user.reauthenticateWithCredential(cred);
       }
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_friendly(e));
+    }
+  }
+
+  /// Supprime le compte Firebase Auth. À n'appeler qu'APRÈS [reauthenticate]
+  /// et après le nettoyage Firestore.
+  static Future<void> deleteCurrentUser() async {
+    final user = _auth.currentUser;
+    if (user == null) throw AuthException('Non connecté.');
+    try {
       await user.delete();
     } on FirebaseAuthException catch (e) {
       throw AuthException(_friendly(e));
     }
+  }
+
+  /// Supprime définitivement le compte : réauth → suppression.
+  static Future<void> deleteAccount({String? currentPassword}) async {
+    await reauthenticate(currentPassword: currentPassword);
+    await deleteCurrentUser();
   }
 
   static bool get isPasswordUser =>
