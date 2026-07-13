@@ -36,6 +36,13 @@ Future<void> main() async {
     debugPrint('Firebase init échouée (groupes indisponibles) : $e');
   }
 
+  // Rafraîchit le statut de l'utilisateur (email vérifié, session). Sans ça,
+  // l'app garde en cache l'ancien statut « non vérifié » et renvoie sur
+  // l'écran de vérification / connexion à chaque ouverture.
+  try {
+    await FirebaseAuth.instance.currentUser?.reload();
+  } catch (_) {}
+
   // Charge le thème choisi par l'utilisateur (palette + polices).
   await ThemeService.load();
 

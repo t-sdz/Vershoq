@@ -440,15 +440,19 @@ class NotificationService {
   ) async {
     final tzTime = tz.TZDateTime.from(scheduledTime, tz.local);
 
-    // Compte à rebours façon BeReal : la notif affiche un chrono qui descend
-    // depuis la durée choisie, rendu nativement par Android. Le titre montre
-    // le prénom et le chrono natif affiche le temps à côté (« nom - time »).
+    // Le chrono qui descend + la disparition automatique ne s'appliquent QUE si
+    // le compte à rebours est activé. Sinon la notif reste (pas de pression de
+    // temps) pour qu'on ait le temps de prendre la photo.
+    final prefs = await SharedPreferences.getInstance();
+    final countdownOn = prefs.getBool('countdown_enabled') ?? false;
     final deadline = scheduledTime.add(Duration(seconds: durationSeconds));
 
     await _plugin.zonedSchedule(
       id,
       '📸 $personName',
-      'Prends vite la photo — il te reste ${_fmtDuration(durationSeconds)} !',
+      countdownOn
+          ? 'Prends vite la photo — il te reste ${_fmtDuration(durationSeconds)} !'
+          : 'Prends ta photo avec $personName !',
       tzTime,
       NotificationDetails(
         android: AndroidNotificationDetails(
@@ -460,14 +464,15 @@ class NotificationService {
           priority: Priority.high,
           ticker: "Snap'It",
           category: AndroidNotificationCategory.reminder,
-          // Chrono natif qui décompte jusqu'à la deadline (effet BeReal)
-          usesChronometer: true,
-          chronometerCountDown: true,
-          when: deadline.millisecondsSinceEpoch,
-          showWhen: true,
-          // La notif disparaît toute seule à la fin du compte à rebours
-          // (si l'utilisateur la loupe, elle ne reste pas indéfiniment).
-          timeoutAfter: durationSeconds * 1000,
+          // Chrono natif qui décompte jusqu'à la deadline (effet BeReal),
+          // seulement si le compte à rebours est activé.
+          usesChronometer: countdownOn,
+          chronometerCountDown: countdownOn,
+          when: countdownOn ? deadline.millisecondsSinceEpoch : null,
+          showWhen: countdownOn,
+          // La notif ne disparaît toute seule QUE si le compte à rebours est
+          // activé ; sinon elle reste tant qu'on ne l'a pas ouverte.
+          timeoutAfter: countdownOn ? durationSeconds * 1000 : null,
           autoCancel: true,
           // Bouton interactif : ouvre directement la caméra
           actions: <AndroidNotificationAction>[
