@@ -92,9 +92,9 @@ class NotificationService {
         iOS: iosSettings,
       ),
       onDidReceiveNotificationResponse: (response) {
-        if (response.payload != null && response.payload!.isNotEmpty) {
-          _onTap?.call(response.payload!);
-        }
+        // Toutes nos notifs sont des « moments photo » : taper ouvre la caméra,
+        // MÊME si le label (prénoms) est vide, sinon rien ne se passe.
+        _onTap?.call(response.payload ?? '');
       },
       onDidReceiveBackgroundNotificationResponse:
           onBackgroundNotificationResponse,
@@ -123,7 +123,9 @@ class NotificationService {
     if (kIsWeb) return null;
     final details = await _plugin.getNotificationAppLaunchDetails();
     if (details?.didNotificationLaunchApp == true) {
-      return details?.notificationResponse?.payload;
+      // Lancée en tapant une notif : on renvoie le label (éventuellement vide,
+      // mais jamais null) pour que la caméra s'ouvre quand même.
+      return details?.notificationResponse?.payload ?? '';
     }
     return null;
   }

@@ -70,22 +70,44 @@ Future<void> main() async {
   // Schedule random notifications on first launch
   await NotificationService.scheduleRandom();
 
-  // Ouvert en tapant une notif (locale) ? Ou une notif push (app tuée) ?
-  // Sinon, un moment photo est-il encore en cours ?
-  String? initial = await NotificationService.getLaunchPayload();
-  initial ??= await PushService.initialTapLabel();
-  if (initial == null &&
+  // Faut-il ouvrir directement la caméra au lancement ?
+  //  - notif locale tapée, OU
+  //  - notif push tapée (app tuée), MÊME si les prénoms sont vides, OU
+  //  - un moment photo est encore actif (ouverture juste après une alerte).
+  String? initial;
+  var openCamera = false;
+
+  final localPayload = await NotificationService.getLaunchPayload();
+  if (localPayload != null) {
+    initial = localPayload;
+    openCamera = true;
+  }
+  if (!openCamera) {
+    // Renvoie null si la notif n'a PAS été tapée ; sinon le label (parfois vide).
+    final tapped = await PushService.initialTapLabel();
+    if (tapped != null) {
+      initial = tapped;
+      openCamera = true;
+    }
+  }
+  if (!openCamera &&
       FirebaseAuth.instance.currentUser?.emailVerified == true) {
-    initial = await NotificationService.activeMomentLabel();
+    final moment = await NotificationService.activeMomentLabel();
+    if (moment != null) {
+      initial = moment;
+      openCamera = true;
+    }
   }
 
-  runApp(VershoqApp(initialPersonName: initial));
+  runApp(VershoqApp(initialPersonName: initial, openCamera: openCamera));
 }
 
 class VershoqApp extends StatelessWidget {
   final String? initialPersonName;
+  final bool openCamera;
 
-  const VershoqApp({super.key, this.initialPersonName});
+  const VershoqApp(
+      {super.key, this.initialPersonName, this.openCamera = false});
 
   @override
   Widget build(BuildContext context) {
@@ -97,8 +119,8 @@ class VershoqApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         navigatorKey: navigatorKey,
         theme: _buildTheme(),
-        home: initialPersonName != null && initialPersonName!.isNotEmpty
-            ? CameraScreen(personName: initialPersonName!)
+        home: openCamera
+            ? CameraScreen(personName: initialPersonName ?? '')
             : StreamBuilder<User?>(
                 stream: FirebaseAuth.instance.authStateChanges(),
                 builder: (context, snap) {
