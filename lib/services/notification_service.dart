@@ -399,18 +399,43 @@ class NotificationService {
     if (raw == null) return null;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     final windowMs = await _momentWindowMs();
+    final consumed = prefs.getInt(_consumedKey) ?? 0;
     var bestT = 0;
     String? best;
     try {
       for (final e in jsonDecode(raw) as List) {
         final t = (e['t'] as num).toInt();
-        if (nowMs >= t && nowMs <= t + windowMs && t > bestT) {
+        // On ignore un moment déjà consommé (photo déjà prise) : le bandeau
+        // disparaît alors et on ne peut pas reprendre une 2e photo pour la
+        // même alerte.
+        if (nowMs >= t && nowMs <= t + windowMs && t != consumed && t > bestT) {
           bestT = t;
           best = e['l'] as String;
         }
       }
     } catch (_) {}
     return best;
+  }
+
+  /// Marque le moment actuellement actif comme « consommé » (photo prise), pour
+  /// que le bandeau disparaisse et qu'on ne puisse pas reprendre une photo pour
+  /// la même alerte (que la photo vienne de la notif ou du bandeau).
+  static Future<void> consumeActiveMoment() async {
+    if (kIsWeb) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final raw = prefs.getString(_momentsKey);
+    if (raw == null) return;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final windowMs = await _momentWindowMs();
+    var bestT = 0;
+    try {
+      for (final e in jsonDecode(raw) as List) {
+        final t = (e['t'] as num).toInt();
+        if (nowMs >= t && nowMs <= t + windowMs && t > bestT) bestT = t;
+      }
+    } catch (_) {}
+    if (bestT > 0) await prefs.setInt(_consumedKey, bestT);
   }
 
   /// Enregistre un moment « maintenant » (utilisé par l'envoi immédiat) pour

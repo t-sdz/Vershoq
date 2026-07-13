@@ -8,6 +8,7 @@ import 'package:image/image.dart' as img;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/notification_service.dart';
 import '../services/storage_service.dart';
 import '../theme/v_theme.dart';
 import 'result_screen.dart';
@@ -188,6 +189,10 @@ class _CameraScreenState extends State<CameraScreen>
         File(entry.localPath),
         widget.personName,
       );
+
+      // Photo prise : on consomme le moment pour que le bandeau disparaisse et
+      // qu'on ne puisse pas reprendre une 2e photo pour la même alerte.
+      await NotificationService.consumeActiveMoment();
 
       if (mounted) {
         await Navigator.of(context).pushReplacement(
