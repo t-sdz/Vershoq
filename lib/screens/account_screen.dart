@@ -9,8 +9,8 @@ import '../services/user_profile_service.dart';
 import '../theme/v_theme.dart';
 import 'account_info_screen.dart';
 import 'create_group_screen.dart';
-import 'feed_screen.dart';
 import 'gallery_screen.dart';
+import 'main_shell.dart';
 import 'join_group_screen.dart';
 import 'login_screen.dart';
 import 'settings_screen.dart';
@@ -57,7 +57,7 @@ class _AccountScreenState extends State<AccountScreen> {
     await GroupService.setActiveGroup(groupId);
     if (mounted) {
       Navigator.of(context)
-          .push(MaterialPageRoute(builder: (_) => const FeedScreen()))
+          .push(MaterialPageRoute(builder: (_) => const MainShell()))
           .then((_) => _load());
     }
   }
