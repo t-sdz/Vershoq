@@ -16,9 +16,14 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // FCM affiche déjà la notification système ; on arme juste la bannière/caméra.
   // Même si les prénoms ne sont pas encore en cache, on arme le moment (label
   // vide) pour que la bannière apparaisse quand l'utilisateur ouvre l'app.
-  final label =
-      await NotificationService.buildMyMomentLabel(seed: _seedOf(message)) ?? '';
-  await NotificationService.registerRemoteMoment(label);
+  try {
+    final label =
+        await NotificationService.buildMyMomentLabel(seed: _seedOf(message)) ??
+            '';
+    await NotificationService.registerRemoteMoment(label);
+  } catch (e) {
+    debugPrint('firebaseMessagingBackgroundHandler: $e');
+  }
 }
 
 /// Lit la graine commune (data.seed) d'un push, ou null si absente.

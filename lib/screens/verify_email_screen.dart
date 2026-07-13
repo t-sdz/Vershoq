@@ -18,41 +18,57 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   bool _busy = false;
   String? _info;
 
-  @override
-  void initState() {
-    super.initState();
-    // Envoie automatiquement un premier email de vérification.
-    AuthService.sendEmailVerification();
-  }
+  // Pas d'envoi automatique ici : l'email est envoyé une seule fois à
+  // l'inscription. Cet écran peut être affiché à chaque ouverture tant que
+  // l'email n'est pas vérifié — envoyer à chaque fois spammerait l'utilisateur
+  // et déclencherait « trop de tentatives ». On propose un bouton « Renvoyer ».
 
   Future<void> _check() async {
     setState(() {
       _busy = true;
       _info = null;
     });
-    final verified = await AuthService.reloadAndCheckVerified();
-    if (!mounted) return;
-    if (verified) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const AccountScreen()),
-        (_) => false,
-      );
-    } else {
+    try {
+      final verified = await AuthService.reloadAndCheckVerified();
+      if (!mounted) return;
+      if (verified) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const AccountScreen()),
+          (_) => false,
+        );
+        return;
+      }
       setState(() {
         _busy = false;
         _info = 'Pas encore vérifié. Clique sur le lien dans l\'email.';
       });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _info = 'Pas de connexion. Réessaie.';
+        });
+      }
     }
   }
 
   Future<void> _resend() async {
     setState(() => _busy = true);
-    await AuthService.sendEmailVerification();
-    if (mounted) {
-      setState(() {
-        _busy = false;
-        _info = 'Email de vérification renvoyé !';
-      });
+    try {
+      await AuthService.sendEmailVerification();
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _info = 'Email de vérification renvoyé !';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _info = 'Impossible d\'envoyer l\'email (réessaie plus tard).';
+        });
+      }
     }
   }
 

@@ -35,6 +35,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   List<JoinedGroup> _joined = [];
   String? _activeMoment;
   bool _loading = true;
+  final Set<String> _subscribedTopics = {};
 
   @override
   void initState() {
@@ -51,8 +52,14 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  // Un push est arrivé app ouverte -> rafraîchit la bannière tout de suite.
-  void _onMomentTick() => _load();
+  // Un push est arrivé app ouverte -> rafraîchit UNIQUEMENT la bannière (lecture
+  // locale), sans relire Firestore, pour ne pas gaspiller le quota.
+  void _onMomentTick() => _refreshBanner();
+
+  Future<void> _refreshBanner() async {
+    final m = await NotificationService.peekActiveMoment();
+    if (mounted) setState(() => _activeMoment = m);
+  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -65,8 +72,13 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     final group = await GroupService.refreshCurrentGroup();
     final user  = await GroupService.getCurrentUser();
     final joined = await GroupService.getJoinedGroups();
-    // Abonne l'appareil aux notifs push de tous ses groupes.
-    PushService.subscribeGroups(joined.map((j) => j.group.id).toList());
+    // Abonne l'appareil aux notifs push des NOUVEAUX groupes seulement
+    // (évite de re-souscrire à chaque chargement).
+    final newTopics = joined
+        .map((j) => j.group.id)
+        .where((id) => _subscribedTopics.add(id))
+        .toList();
+    if (newTopics.isNotEmpty) PushService.subscribeGroups(newTopics);
     final activeMoment = await NotificationService.peekActiveMoment();
     List<GroupMember> members = [];
     if (group != null) {

@@ -263,7 +263,10 @@ class NotificationService {
     if (raw == null) return null;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     final consumed = prefs.getInt(_consumedKey) ?? 0;
-    final windowMs = await _momentWindowMs();
+    // Ouverture AUTOMATIQUE de la caméra au lancement : fenêtre COURTE (3 min),
+    // pour ne se déclencher que si on ouvre l'app juste après un moment. Le
+    // bandeau (peekActiveMoment), lui, reste disponible bien plus longtemps.
+    const windowMs = 3 * 60 * 1000;
     try {
       // On prend le moment le plus récent encore actif.
       var bestT = 0;
@@ -323,8 +326,14 @@ class NotificationService {
       final me = (await GroupService.getCurrentUser())?.username.trim();
       if (me != null && me.isNotEmpty) full.add(me);
     }
-    // Tri stable identique partout (par nom en minuscules).
-    full.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    // Tri TOTAL et stable, identique sur tous les téléphones : d'abord par nom
+    // en minuscules, puis par nom exact en cas d'égalité (sinon l'ordre des
+    // noms identiques pourrait différer d'un appareil à l'autre et casser la
+    // réciprocité).
+    full.sort((a, b) {
+      final c = a.toLowerCase().compareTo(b.toLowerCase());
+      return c != 0 ? c : a.compareTo(b);
+    });
     if (full.length < 2 || self == null || self.isEmpty) return null;
 
     final group = await GroupService.getCurrentGroup();

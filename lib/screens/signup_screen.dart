@@ -28,16 +28,19 @@ class _SignupScreenState extends State<SignupScreen> {
       _submitting = true;
       _error = null;
     });
+    // Normalise l'email UNE fois pour l'auth ET le profil (sinon les deux
+    // peuvent différer en casse/espaces et casser les recherches par email).
+    final email = _emailCtrl.text.trim().toLowerCase();
     try {
       final user = await AuthService.signUp(
-        email: _emailCtrl.text,
+        email: email,
         password: _passwordCtrl.text,
       );
       await UserProfileService.createProfile(
         uid: user.uid,
-        name: _nameCtrl.text,
-        username: _usernameCtrl.text,
-        email: _emailCtrl.text,
+        name: _nameCtrl.text.trim(),
+        username: _usernameCtrl.text.trim(),
+        email: email,
       );
       await AuthService.sendEmailVerification();
       if (mounted) {

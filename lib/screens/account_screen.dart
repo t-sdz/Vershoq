@@ -36,14 +36,20 @@ class _AccountScreenState extends State<AccountScreen> {
   }
 
   Future<void> _load() async {
-    final profile = await UserProfileService.current();
-    final groups = await GroupService.getJoinedGroups();
-    if (mounted) {
-      setState(() {
-        _profile = profile;
-        _groups = groups;
-        _loading = false;
-      });
+    try {
+      final profile = await UserProfileService.current();
+      final groups = await GroupService.getJoinedGroups();
+      if (mounted) {
+        setState(() {
+          _profile = profile;
+          _groups = groups;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      // Réseau coupé / erreur Firestore : on arrête le chargement au lieu de
+      // laisser tourner le rond à l'infini.
+      if (mounted) setState(() => _loading = false);
     }
   }
 

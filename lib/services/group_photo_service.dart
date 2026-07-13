@@ -50,18 +50,25 @@ class GroupPhotoService {
 
   /// Récupère une fois (sans écoute live) les photos d'un groupe — utile pour
   /// agréger plusieurs groupes dans une galerie perso globale.
-  static Future<List<GroupPhotoEntry>> fetchGroupPhotos(String groupId) async {
+  static Future<List<GroupPhotoEntry>> fetchGroupPhotos(String groupId,
+      {int limit = 50}) async {
     final snap = await _photosCol(groupId)
         .orderBy('timestamp', descending: true)
+        .limit(limit)
         .get();
     return snap.docs
         .map((d) => GroupPhotoEntry.fromMap(d.id, d.data()))
         .toList();
   }
 
-  static Stream<List<GroupPhotoEntry>> streamGroupPhotos(String groupId) {
+  /// Fil du groupe. On limite le nombre de photos chargées pour économiser le
+  /// quota Firebase gratuit (chaque photo lue = 1 lecture facturée) et la
+  /// mémoire (les images sont stockées en base64 dans le document).
+  static Stream<List<GroupPhotoEntry>> streamGroupPhotos(String groupId,
+      {int limit = 30}) {
     return _photosCol(groupId)
         .orderBy('timestamp', descending: true)
+        .limit(limit)
         .snapshots()
         .map((snap) => snap.docs
             .map((d) => GroupPhotoEntry.fromMap(d.id, d.data()))
