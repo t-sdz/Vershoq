@@ -195,12 +195,16 @@ class NotificationService {
     }
     if (members.isEmpty) {
       final cached = await GroupService.getCachedMemberNames();
+      // Repli hors-ligne : on donne à MON nom mon vrai email, sinon le test
+      // « suis-je dans le moment ? » (basé sur l'email) ne matcherait jamais
+      // et aucune notif ne serait planifiée. On ne relabellise que le PREMIER
+      // nom qui correspond (au cas où deux membres auraient le même pseudo).
+      var selfAssigned = false;
       members = cached.map((n) {
-        // Repli hors-ligne : on donne à MON nom mon vrai email, sinon le test
-        // « suis-je dans le moment ? » (basé sur l'email) ne matcherait jamais
-        // et aucune notif ne serait planifiée.
-        final isSelf =
-            selfUsername.isNotEmpty && n.trim().toLowerCase() == selfUsername;
+        final isSelf = !selfAssigned &&
+            selfUsername.isNotEmpty &&
+            n.trim().toLowerCase() == selfUsername;
+        if (isSelf) selfAssigned = true;
         return GroupMember(
           username: n,
           email: isSelf ? selfEmail : n.trim().toLowerCase(),
