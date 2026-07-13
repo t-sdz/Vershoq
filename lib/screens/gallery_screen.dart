@@ -91,7 +91,10 @@ class _GalleryScreenState extends State<GalleryScreen> {
 
   Widget _buildGroupGallery() {
     return StreamBuilder<List<GroupPhotoEntry>>(
-      stream: GroupPhotoService.streamGroupPhotos(_groupId!),
+      // En vue perso on filtre ensuite côté client, donc on charge une fenêtre
+      // plus large pour ne pas masquer tes anciennes photos ; sinon 30 suffit.
+      stream: GroupPhotoService.streamGroupPhotos(_groupId!,
+          limit: widget.personalOnly ? 200 : 30),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return Center(child: CircularProgressIndicator(color: VTheme.orange));

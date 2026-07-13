@@ -29,7 +29,26 @@ class NotificationService {
   static const _captureActionId = 'vershoq_capture';
   static const _iosCategoryId = 'vershoq_shot_category';
   static const _momentsKey = 'vershoq_moments';
-  static const _consumedKey = 'vershoq_moment_consumed';
+  static const _consumedSetKey = 'vershoq_moments_consumed_set';
+
+  /// Ensemble des moments déjà consommés (photo prise), par timestamp. On
+  /// utilise un ENSEMBLE (pas un seul) pour gérer plusieurs alertes actives en
+  /// même temps sans que l'une réapparaisse après avoir photographié l'autre.
+  static Future<Set<int>> _getConsumed(SharedPreferences prefs) async {
+    final raw = prefs.getStringList(_consumedSetKey);
+    if (raw == null) return <int>{};
+    return raw.map((s) => int.tryParse(s) ?? 0).toSet();
+  }
+
+  static Future<void> _addConsumed(SharedPreferences prefs, int t) async {
+    final set = await _getConsumed(prefs);
+    set.add(t);
+    // Garde seulement les 50 plus récents pour ne pas grossir indéfiniment.
+    final list = set.toList()..sort();
+    final trimmed = list.length > 50 ? list.sublist(list.length - 50) : list;
+    await prefs.setStringList(
+        _consumedSetKey, trimmed.map((e) => e.toString()).toList());
+  }
 
   static Future<void> init({
     required void Function(String personName) onTap,
@@ -262,7 +281,7 @@ class NotificationService {
     final raw = prefs.getString(_momentsKey);
     if (raw == null) return null;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
-    final consumed = prefs.getInt(_consumedKey) ?? 0;
+    final consumed = await _getConsumed(prefs);
     // Ouverture AUTOMATIQUE de la caméra au lancement : fenêtre COURTE (3 min),
     // pour ne se déclencher que si on ouvre l'app juste après un moment. Le
     // bandeau (peekActiveMoment), lui, reste disponible bien plus longtemps.
@@ -273,13 +292,16 @@ class NotificationService {
       String? bestLabel;
       for (final e in jsonDecode(raw) as List) {
         final t = (e['t'] as num).toInt();
-        if (nowMs >= t && nowMs <= t + windowMs && t != consumed && t > bestT) {
+        if (nowMs >= t &&
+            nowMs <= t + windowMs &&
+            !consumed.contains(t) &&
+            t > bestT) {
           bestT = t;
           bestLabel = e['l'] as String;
         }
       }
       if (bestLabel != null) {
-        await prefs.setInt(_consumedKey, bestT);
+        await _addConsumed(prefs, bestT);
         return bestLabel;
       }
     } catch (_) {}
@@ -399,7 +421,7 @@ class NotificationService {
     if (raw == null) return null;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     final windowMs = await _momentWindowMs();
-    final consumed = prefs.getInt(_consumedKey) ?? 0;
+    final consumed = await _getConsumed(prefs);
     var bestT = 0;
     String? best;
     try {
@@ -408,7 +430,10 @@ class NotificationService {
         // On ignore un moment déjà consommé (photo déjà prise) : le bandeau
         // disparaît alors et on ne peut pas reprendre une 2e photo pour la
         // même alerte.
-        if (nowMs >= t && nowMs <= t + windowMs && t != consumed && t > bestT) {
+        if (nowMs >= t &&
+            nowMs <= t + windowMs &&
+            !consumed.contains(t) &&
+            t > bestT) {
           bestT = t;
           best = e['l'] as String;
         }
@@ -417,9 +442,11 @@ class NotificationService {
     return best;
   }
 
-  /// Marque le moment actuellement actif comme « consommé » (photo prise), pour
-  /// que le bandeau disparaisse et qu'on ne puisse pas reprendre une photo pour
-  /// la même alerte (que la photo vienne de la notif ou du bandeau).
+  /// Marque le moment actuellement affiché (le plus récent NON consommé) comme
+  /// « consommé » (photo prise), pour que le bandeau disparaisse et qu'on ne
+  /// puisse pas reprendre une photo pour la même alerte (notif ou bandeau).
+  /// On choisit le même moment que peekActiveMoment afin de consommer bien
+  /// celui que l'utilisateur voyait, même s'il y a plusieurs alertes actives.
   static Future<void> consumeActiveMoment() async {
     if (kIsWeb) return;
     final prefs = await SharedPreferences.getInstance();
@@ -428,14 +455,20 @@ class NotificationService {
     if (raw == null) return;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     final windowMs = await _momentWindowMs();
+    final consumed = await _getConsumed(prefs);
     var bestT = 0;
     try {
       for (final e in jsonDecode(raw) as List) {
         final t = (e['t'] as num).toInt();
-        if (nowMs >= t && nowMs <= t + windowMs && t > bestT) bestT = t;
+        if (nowMs >= t &&
+            nowMs <= t + windowMs &&
+            !consumed.contains(t) &&
+            t > bestT) {
+          bestT = t;
+        }
       }
     } catch (_) {}
-    if (bestT > 0) await prefs.setInt(_consumedKey, bestT);
+    if (bestT > 0) await _addConsumed(prefs, bestT);
   }
 
   /// Enregistre un moment « maintenant » (utilisé par l'envoi immédiat) pour

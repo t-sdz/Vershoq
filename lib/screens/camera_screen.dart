@@ -55,6 +55,7 @@ class _CameraScreenState extends State<CameraScreen>
     try {
       // Demande explicite de la permission caméra (requise sur MIUI/Xiaomi)
       final status = await Permission.camera.request();
+      if (!mounted) return;
       if (!status.isGranted) {
         setState(() => _errorMessage =
             'Permission caméra refusée.\nActive-la dans les paramètres de l\'app.');
@@ -62,6 +63,7 @@ class _CameraScreenState extends State<CameraScreen>
       }
 
       _cameras = await availableCameras();
+      if (!mounted) return;
       if (_cameras.isEmpty) {
         setState(() => _errorMessage = 'Aucune caméra disponible');
         return;
@@ -73,7 +75,9 @@ class _CameraScreenState extends State<CameraScreen>
       if (_cameraIndex < 0) _cameraIndex = 0;
       await _startController(_cameras[_cameraIndex]);
     } catch (e) {
-      setState(() => _errorMessage = 'Impossible d\'accéder à la caméra : $e');
+      if (mounted) {
+        setState(() => _errorMessage = 'Impossible d\'accéder à la caméra : $e');
+      }
     }
   }
 
@@ -137,6 +141,9 @@ class _CameraScreenState extends State<CameraScreen>
     if (controller == null || !controller.value.isInitialized) return;
 
     if (state == AppLifecycleState.inactive) {
+      // On marque non-initialisé AVANT de libérer, sinon l'aperçu se
+      // reconstruit sur un contrôleur libéré → exception / écran noir.
+      if (mounted) setState(() => _isInitialized = false);
       controller.dispose();
     } else if (state == AppLifecycleState.resumed) {
       _startController(controller.description);

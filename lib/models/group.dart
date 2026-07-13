@@ -35,10 +35,15 @@ class Group {
     return e == createdByEmail || admins.contains(e);
   }
 
-  int _cfgInt(String key, int fallback) =>
-      (notifConfig?[key] as num?)?.toInt() ?? fallback;
-  bool _cfgBool(String key, bool fallback) =>
-      notifConfig?[key] as bool? ?? fallback;
+  int _cfgInt(String key, int fallback) {
+    final v = notifConfig?[key];
+    return v is num ? v.toInt() : fallback;
+  }
+
+  bool _cfgBool(String key, bool fallback) {
+    final v = notifConfig?[key];
+    return v is bool ? v : fallback;
+  }
 
   bool get notifEnabled => _cfgBool('enabled', true);
   bool get notifTimeLimit => _cfgBool('timeLimit', true);

@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/group.dart';
 import 'notification_service.dart';
+import 'push_service.dart';
 
 /// Exception métier renvoyée au formulaire pour affichage utilisateur.
 class GroupException implements Exception {
@@ -53,7 +54,18 @@ class GroupService {
 
     try {
       final creatorEmail = email.trim().toLowerCase();
-      final docRef = await _groups.add({
+      final member = GroupMember(
+        username: username.trim(),
+        email: creatorEmail,
+        joinedAt: now,
+        photoBase64: memberPhotoBase64,
+      );
+
+      // Écriture ATOMIQUE : le groupe et son premier membre partent ensemble
+      // (sinon un échec entre les deux laisse un groupe sans membre).
+      final docRef = _groups.doc();
+      final batch = FirebaseFirestore.instance.batch();
+      batch.set(docRef, {
         'name': name.trim(),
         'code': code,
         'createdByEmail': creatorEmail,
@@ -63,14 +75,8 @@ class GroupService {
         'admins': [creatorEmail],
         if (photoBase64 != null) 'photoBase64': photoBase64,
       });
-
-      final member = GroupMember(
-        username: username.trim(),
-        email: email.trim().toLowerCase(),
-        joinedAt: now,
-        photoBase64: memberPhotoBase64,
-      );
-      await docRef.collection('members').add(member.toMap());
+      batch.set(docRef.collection('members').doc(), member.toMap());
+      await batch.commit();
 
       final group = Group(
         id: docRef.id,
@@ -132,10 +138,15 @@ class GroupService {
           .limit(1)
           .get();
       if (existing.docs.isEmpty) {
-        await doc.reference.collection('members').add(member.toMap());
-        await doc.reference.update({
+        // Écriture ATOMIQUE : ajout du membre + incrément du compteur ensemble
+        // (sinon le compteur peut diverger du nombre réel de membres).
+        final batch = FirebaseFirestore.instance.batch();
+        batch.set(
+            doc.reference.collection('members').doc(), member.toMap());
+        batch.update(doc.reference, {
           'memberCount': FieldValue.increment(1),
         });
+        await batch.commit();
       }
 
       await _saveLocal(group, member);
@@ -155,17 +166,22 @@ class GroupService {
 
   static Future<void> removeMember(String groupId, String memberEmail) async {
     try {
+      // Les emails des membres sont stockés en minuscules : on normalise la
+      // recherche, sinon un email avec majuscules ne trouve rien → membre
+      // fantôme + memberCount jamais décrémenté.
       final snap = await _groups
           .doc(groupId)
           .collection('members')
-          .where('email', isEqualTo: memberEmail)
+          .where('email', isEqualTo: memberEmail.trim().toLowerCase())
           .limit(1)
           .get();
       if (snap.docs.isNotEmpty) {
-        await snap.docs.first.reference.delete();
-        await _groups.doc(groupId).update({
+        final batch = FirebaseFirestore.instance.batch();
+        batch.delete(snap.docs.first.reference);
+        batch.update(_groups.doc(groupId), {
           'memberCount': FieldValue.increment(-1),
         });
+        await batch.commit();
       }
     } on FirebaseException catch (e) {
       throw GroupException('Erreur Firebase : ${e.message ?? e.code}');
@@ -402,6 +418,10 @@ class GroupService {
     var list = await getJoinedGroups();
     list = list.where((j) => j.group.id != targetId).toList();
     await _writeJoined(list);
+
+    // Se désabonne des notifs push de ce groupe, sinon on continue à recevoir
+    // ses alertes après l'avoir quitté.
+    await PushService.unsubscribeGroup(targetId);
 
     // Si on a quitté le groupe actif, on bascule sur un autre (ou aucun).
     if (active == null || active.id == targetId) {
