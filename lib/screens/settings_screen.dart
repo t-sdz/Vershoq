@@ -30,6 +30,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _maxCount = 5;
   int _minNames = 1;
   int _maxNames = 3;
+  List<String> _extraNames = [];
+  final TextEditingController _extraNameCtrl = TextEditingController();
 
   // Countdown (local)
   bool _countdownEnabled = false;
@@ -42,6 +44,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _extraNameCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -63,6 +71,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _maxCount = group?.notifMaxCount ?? 5;
         _minNames = group?.notifMinNames ?? 1;
         _maxNames = group?.notifMaxNames ?? 3;
+        _extraNames = List<String>.from(group?.extraNames ?? const []);
         // Compte à rebours : local.
         _countdownEnabled = prefs.getBool('countdown_enabled') ?? false;
         _countdownSeconds = prefs.getInt('countdown_seconds') ?? 15;
@@ -80,6 +89,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'maxCount': _maxCount,
         'minNames': _minNames,
         'maxNames': _maxNames,
+        'extraNames': _extraNames,
       };
 
   Future<void> _saveConfig({String? message}) async {
@@ -158,6 +168,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildNamesCard(),
             _validateButton('Valider',
                 () => _saveConfig(message: 'Noms par photo enregistrés !')),
+            const SizedBox(height: 24),
+
+            _SectionTitle('Prénoms en plus'),
+            const SizedBox(height: 8),
+            _buildExtraNamesCard(),
             const SizedBox(height: 32),
 
             _SectionTitle('Compte à rebours'),
@@ -563,6 +578,80 @@ class _SettingsScreenState extends State<SettingsScreen> {
           style: TextStyle(color: VTheme.warmMuted, fontSize: 12),
         ),
       ),
+    ]);
+  }
+
+  Future<void> _addExtraName() async {
+    final name = _extraNameCtrl.text.trim();
+    if (name.isEmpty) return;
+    // Pas de doublon (insensible à la casse).
+    if (_extraNames.any((n) => n.toLowerCase() == name.toLowerCase())) {
+      _extraNameCtrl.clear();
+      return;
+    }
+    setState(() {
+      _extraNames = [..._extraNames, name];
+      _extraNameCtrl.clear();
+    });
+    await _saveConfig();
+  }
+
+  Future<void> _removeExtraName(String name) async {
+    setState(() {
+      _extraNames = _extraNames.where((n) => n != name).toList();
+    });
+    await _saveConfig();
+  }
+
+  Widget _buildExtraNamesCard() {
+    return _settingsCard([
+      Text(
+        'Ajoute des prénoms (même des gens pas sur l\'app). Ils peuvent '
+        'apparaître dans les notifs « prends une photo avec… ».',
+        style: TextStyle(color: VTheme.warmMuted, fontSize: 12),
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _extraNameCtrl,
+              textCapitalization: TextCapitalization.words,
+              style: TextStyle(color: VTheme.warmDark),
+              decoration: InputDecoration(
+                hintText: 'Nouveau prénom',
+                isDense: true,
+              ),
+              onSubmitted: (_) => _addExtraName(),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: _addExtraName,
+            icon: Icon(Icons.add_circle, color: VTheme.orange, size: 32),
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      if (_extraNames.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Text('Aucun prénom ajouté pour l\'instant.',
+              style: TextStyle(color: VTheme.warmMuted, fontSize: 12)),
+        )
+      else
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _extraNames
+              .map((n) => Chip(
+                    label: Text(n, style: TextStyle(color: VTheme.warmDark)),
+                    backgroundColor: VTheme.bgWarm,
+                    deleteIconColor: VTheme.warmMuted,
+                    onDeleted: () => _removeExtraName(n),
+                  ))
+              .toList(),
+        ),
     ]);
   }
 

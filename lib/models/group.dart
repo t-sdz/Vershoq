@@ -54,6 +54,18 @@ class Group {
   int get notifMinNames => _cfgInt('minNames', 1);
   int get notifMaxNames => _cfgInt('maxNames', 3);
 
+  /// Prénoms ajoutés par l'admin (personnes pas forcément sur l'app) qui
+  /// peuvent apparaître dans les notifs « prends une photo avec X ». Partagés
+  /// par tout le groupe via notifConfig.
+  List<String> get extraNames {
+    final v = notifConfig?['extraNames'];
+    if (v is! List) return const <String>[];
+    return v
+        .map((e) => e.toString().trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+  }
+
   Map<String, dynamic> toMap() => {
         'name': name,
         'code': code,

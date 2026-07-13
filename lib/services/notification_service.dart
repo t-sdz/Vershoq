@@ -199,6 +199,14 @@ class NotificationService {
               username: n, email: n.trim().toLowerCase(), joinedAt: now))
           .toList();
     }
+    // Prénoms ajoutés par l'admin : ajoutés comme « cibles » possibles (email
+    // fictif « extra:… » qui ne correspond à personne → jamais notifiés eux-
+    // mêmes, mais peuvent apparaître dans « prends une photo avec X »).
+    for (final n in group.extraNames) {
+      final e = 'extra:${n.trim().toLowerCase()}';
+      if (members.any((m) => m.email == e)) continue;
+      members.add(GroupMember(username: n.trim(), email: e, joinedAt: now));
+    }
     members.sort((a, b) => a.email.compareTo(b.email));
     if (members.length < 2) return; // il faut au moins 2 personnes
 
@@ -317,7 +325,13 @@ class NotificationService {
   /// de la liste triée pareil partout : l'appariement est donc réciproque
   /// (Tess voit « Max », Max voit « Tess »). Sans graine, tirage aléatoire.
   static Future<String?> buildMyMomentLabel({int? seed}) async {
-    final all = await GroupService.getCachedMemberNames();
+    final group = await GroupService.getCurrentGroup();
+    // Membres du groupe + prénoms ajoutés par l'admin (mêmes sur tous les
+    // téléphones → réciprocité préservée).
+    final all = <String>[
+      ...await GroupService.getCachedMemberNames(),
+      ...?group?.extraNames,
+    ];
     final self =
         (await GroupService.getCurrentUser())?.username.trim().toLowerCase();
 
@@ -329,7 +343,6 @@ class NotificationService {
         names = names.where((n) => n.trim().toLowerCase() != self).toList();
       }
       if (names.isEmpty) return null;
-      final group = await GroupService.getCurrentGroup();
       final shuffled = [...names]..shuffle(rng);
       final lo = (group?.notifMinNames ?? 1).clamp(1, shuffled.length);
       final hi = (group?.notifMaxNames ?? 3).clamp(lo, shuffled.length);
@@ -358,7 +371,6 @@ class NotificationService {
     });
     if (full.length < 2 || self == null || self.isEmpty) return null;
 
-    final group = await GroupService.getCurrentGroup();
     final rng = Random(seed);
     // Taille de groupe = (nb de noms par photo) + 1 (pour m'inclure), tirée de
     // façon déterministe dans [min+1, max+1], bornée par la taille du groupe.
@@ -584,7 +596,11 @@ class NotificationService {
   static Future<void> sendImmediate() async {
     if (kIsWeb) return;
     final random = Random();
-    List<String> names = await GroupService.getCachedMemberNames();
+    final group = await GroupService.getCurrentGroup();
+    List<String> names = [
+      ...await GroupService.getCachedMemberNames(),
+      ...?group?.extraNames,
+    ];
     if (names.isEmpty) names = await NamesService.getNames();
     final self = (await GroupService.getCurrentUser())?.username.trim().toLowerCase();
     if (self != null && self.isNotEmpty) {
@@ -594,7 +610,6 @@ class NotificationService {
     final shuffled = [...names]..shuffle(random);
 
     // Respecte le réglage min/max noms du groupe, borné par la taille.
-    final group = await GroupService.getCurrentGroup();
     final maxTargets = shuffled.length;
     final lo = (group?.notifMinNames ?? 1).clamp(1, maxTargets);
     final hi = (group?.notifMaxNames ?? 3).clamp(lo, maxTargets);
