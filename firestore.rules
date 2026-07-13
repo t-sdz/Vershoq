@@ -67,7 +67,18 @@ service cloud.firestore {
                       && request.resource.data.email is string
                       && (!('photoBase64' in request.resource.data)
                           || request.resource.data.photoBase64.size() < 400000);
-        allow update: if false;
+        // Un membre peut mettre à jour SA propre fiche (pseudo / photo) pour
+        // que le changement se répercute dans le groupe. Uniquement sa fiche
+        // (email = son email), et seulement ces champs.
+        allow update: if signedIn()
+                      && request.auth.token.email == resource.data.email
+                      && request.resource.data.diff(resource.data)
+                            .affectedKeys().hasOnly(['username', 'photoBase64'])
+                      && request.resource.data.username is string
+                      && request.resource.data.username.size() > 0
+                      && request.resource.data.username.size() <= 40
+                      && (!('photoBase64' in request.resource.data)
+                          || request.resource.data.photoBase64.size() < 400000);
         allow delete: if signedIn();
       }
 

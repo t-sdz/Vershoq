@@ -188,6 +188,49 @@ class GroupService {
     }
   }
 
+  /// Répercute un changement de pseudo / photo de profil sur MES fiches membre
+  /// dans tous les groupes rejoints (le fil affiche une copie dénormalisée),
+  /// et met à jour le cache local de l'utilisateur courant.
+  static Future<void> syncMyMemberInfo({
+    required String email,
+    String? username,
+    String? photoBase64,
+  }) async {
+    final e = email.trim().toLowerCase();
+    final joined = await getJoinedGroups();
+    for (final j in joined) {
+      try {
+        final snap = await _groups
+            .doc(j.group.id)
+            .collection('members')
+            .where('email', isEqualTo: e)
+            .limit(1)
+            .get();
+        if (snap.docs.isEmpty) continue;
+        final data = <String, dynamic>{};
+        if (username != null && username.trim().isNotEmpty) {
+          data['username'] = username.trim();
+        }
+        if (photoBase64 != null) data['photoBase64'] = photoBase64;
+        if (data.isNotEmpty) await snap.docs.first.reference.update(data);
+      } catch (_) {}
+    }
+    // Cache local de « moi » (sert aux prochaines photos et à l'affichage).
+    final cur = await getCurrentUser();
+    if (cur != null) {
+      final updated = GroupMember(
+        username: (username != null && username.trim().isNotEmpty)
+            ? username.trim()
+            : cur.username,
+        email: cur.email,
+        joinedAt: cur.joinedAt,
+        photoBase64: photoBase64 ?? cur.photoBase64,
+      );
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_currentUserKey, jsonEncode(updated.toMap()));
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Administration du groupe
   // ---------------------------------------------------------------------------

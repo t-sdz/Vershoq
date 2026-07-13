@@ -28,7 +28,8 @@ class _MainShellState extends State<MainShell> {
   // 4 écrans persistants ; « Capture » est une action, pas un onglet.
   final List<Widget> _screens = const [
     FeedScreen(),
-    GalleryScreen(),
+    // Galerie = MES photos (celles où je suis identifié), tous groupes confondus.
+    GalleryScreen(personalOnly: true, allGroups: true),
     GroupsScreen(),
     AccountScreen(),
   ];

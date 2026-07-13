@@ -77,6 +77,12 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
         username: _usernameCtrl.text.trim(),
       );
       await UserProfileService.updateProfile(updated);
+      // Répercute le nouveau pseudo sur mes fiches membre dans les groupes,
+      // sinon le fil continuerait d'afficher l'ancien pseudo.
+      await GroupService.syncMyMemberInfo(
+        email: updated.email,
+        username: updated.username,
+      );
       if (mounted) {
         setState(() {
           _profile = updated;

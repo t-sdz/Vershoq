@@ -114,7 +114,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         extendBodyBehindAppBar: true,
         backgroundColor: VTheme.bgWarm,
         appBar: _buildAppBar(),
-        drawer: _buildDrawer(),
         body: Stack(
           children: [
             _loading
@@ -163,12 +162,15 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               letterSpacing: -1),
         ),
       ),
-      leading: Builder(
-        builder: (ctx) => IconButton(
-          icon: Icon(Icons.menu_rounded, color: VTheme.warmDark),
-          onPressed: () => Scaffold.of(ctx).openDrawer(),
+      actions: [
+        IconButton(
+          icon: Icon(Icons.settings_rounded, color: VTheme.warmDark),
+          tooltip: 'Paramètres',
+          onPressed: () => Navigator.of(context)
+              .push(MaterialPageRoute(builder: (_) => const SettingsScreen()))
+              .then((_) => _load()),
         ),
-      ),
+      ],
     );
   }
 
