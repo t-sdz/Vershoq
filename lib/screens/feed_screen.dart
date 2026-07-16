@@ -430,15 +430,25 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
 
 // ── Group feed ────────────────────────────────────────────────────────────────
 
-class _GroupFeed extends StatelessWidget {
+class _GroupFeed extends StatefulWidget {
   final String groupId;
   final String userEmail;
   const _GroupFeed({required this.groupId, required this.userEmail});
 
   @override
+  State<_GroupFeed> createState() => _GroupFeedState();
+}
+
+class _GroupFeedState extends State<_GroupFeed> {
+  // On charge par paquets (économise le quota) et on agrandit la fenêtre quand
+  // l'utilisateur arrive au bout → toutes les photos restent accessibles.
+  int _limit = 30;
+
+  @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<GroupPhotoEntry>>(
-      stream: GroupPhotoService.streamGroupPhotos(groupId),
+      stream:
+          GroupPhotoService.streamGroupPhotos(widget.groupId, limit: _limit),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return Center(
@@ -446,20 +456,22 @@ class _GroupFeed extends StatelessWidget {
         }
         final photos = snap.data ?? [];
         if (photos.isEmpty) return const _EmptyFeed();
-        return Stack(
-          children: [
-            PageView.builder(
-              scrollDirection: Axis.vertical,
-              itemCount: photos.length,
-              itemBuilder: (_, i) => _GroupPhotoPage(
-                photo: photos[i],
-                isMe: photos[i].uploaderEmail == userEmail,
-                groupId: groupId,
-                index: i,
-                total: photos.length,
-              ),
-            ),
-          ],
+        return PageView.builder(
+          scrollDirection: Axis.vertical,
+          itemCount: photos.length,
+          onPageChanged: (i) {
+            // Proche de la fin ET il y a peut-être plus → on agrandit.
+            if (i >= photos.length - 2 && photos.length >= _limit) {
+              setState(() => _limit += 30);
+            }
+          },
+          itemBuilder: (_, i) => _GroupPhotoPage(
+            photo: photos[i],
+            isMe: photos[i].uploaderEmail == widget.userEmail,
+            groupId: widget.groupId,
+            index: i,
+            total: photos.length,
+          ),
         );
       },
     );
@@ -547,7 +559,11 @@ class _GroupPhotoPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bytes = base64Decode(photo.imageBase64);
+    Uint8List? bytes;
+    try {
+      final b = base64Decode(photo.imageBase64);
+      if (b.isNotEmpty) bytes = b;
+    } catch (_) {}
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -558,12 +574,32 @@ class _GroupPhotoPage extends StatelessWidget {
             // Photo contenue (pas plein écran), coins arrondis façon BeReal.
             // Tap → affichage plein écran avec zoom.
             GestureDetector(
-              onTap: () => _openFullscreen(context, bytes),
+              onTap: bytes == null
+                  ? null
+                  : () => _openFullscreen(context, bytes!),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(24),
                 child: AspectRatio(
                   aspectRatio: 3 / 4,
-                  child: Image.memory(bytes, fit: BoxFit.cover),
+                  child: bytes == null
+                      ? Container(
+                          color: VTheme.surface,
+                          child: Center(
+                            child: Icon(Icons.broken_image_outlined,
+                                color: VTheme.warmMuted, size: 48),
+                          ),
+                        )
+                      : Image.memory(
+                          bytes,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: VTheme.surface,
+                            child: Center(
+                              child: Icon(Icons.broken_image_outlined,
+                                  color: VTheme.warmMuted, size: 48),
+                            ),
+                          ),
+                        ),
                 ),
               ),
             ),
