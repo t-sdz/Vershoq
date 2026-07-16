@@ -36,13 +36,6 @@ Future<void> main() async {
     debugPrint('Firebase init échouée (groupes indisponibles) : $e');
   }
 
-  // Rafraîchit le statut de l'utilisateur (email vérifié, session). Sans ça,
-  // l'app garde en cache l'ancien statut « non vérifié » et renvoie sur
-  // l'écran de vérification / connexion à chaque ouverture.
-  try {
-    await FirebaseAuth.instance.currentUser?.reload();
-  } catch (_) {}
-
   // Charge le thème choisi par l'utilisateur (palette + polices).
   await ThemeService.load();
 
@@ -133,9 +126,11 @@ class VershoqApp extends StatelessWidget {
                   }
                   final user = snap.data;
                   if (user == null) return const LoginScreen();
-                  // Email non vérifié (sauf comptes Google déjà vérifiés).
-                  if (!user.emailVerified) return const VerifyEmailScreen();
-                  return const AccountScreen();
+                  // Vérifie l'email en rafraîchissant le statut APRÈS la
+                  // restauration de session (sinon l'ancien statut « non
+                  // vérifié » en cache renverrait sur l'écran de vérification à
+                  // chaque ouverture).
+                  return _AuthGate(user: user);
                 },
               ),
       ),
@@ -232,5 +227,55 @@ class VershoqApp extends StatelessWidget {
       ),
       cardColor: VTheme.surface,
     );
+  }
+}
+
+/// Décide, après restauration de session, si on affiche le compte ou l'écran
+/// de vérification d'email. Rafraîchit le statut d'abord pour ne pas rester
+/// bloqué sur « email non vérifié » alors qu'il l'a été.
+class _AuthGate extends StatefulWidget {
+  final User user;
+  const _AuthGate({required this.user});
+
+  @override
+  State<_AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<_AuthGate> {
+  bool _checking = true;
+  bool _verified = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    var verified = widget.user.emailVerified;
+    if (!verified) {
+      try {
+        await widget.user.reload();
+        verified =
+            FirebaseAuth.instance.currentUser?.emailVerified ?? verified;
+      } catch (_) {}
+    }
+    if (mounted) {
+      setState(() {
+        _verified = verified;
+        _checking = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_checking) {
+      return Scaffold(
+        backgroundColor: VTheme.bgWarm,
+        body: Center(child: CircularProgressIndicator(color: VTheme.orange)),
+      );
+    }
+    return _verified ? const AccountScreen() : const VerifyEmailScreen();
   }
 }
