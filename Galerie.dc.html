@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700;800&family=Inter:wght@400;500;600;700;800&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Inter', system-ui, sans-serif; }
+    a { color: #FF8A3D; } a:hover { color: #E5761F; }
+    .t { font-family: 'Space Grotesk', 'Inter', sans-serif; }
+    .cap { position: absolute; left: 10px; bottom: 8px; right: 10px; color: #fff; font-size: 12px; font-weight: 700; text-shadow: 0 1px 4px rgba(0,0,0,.5); }
+    .cap span { color: #FFD600; }
+  </style>
+</helmet>
+
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #FFF1D6; color: #3D1A08;">
+
+  <div style="height: 46px;"></div>
+
+  <div style="height: 52px; display: flex; align-items: center; padding: 0 20px;">
+    <div class="t" style="font-size: 22px; font-weight: 700; color: #3D1A08;">Galerie</div>
+  </div>
+
+  <!-- Grid -->
+  <div style="padding: 8px 16px 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+    <div style="position: relative; border-radius: 18px; overflow: hidden; aspect-ratio: 3 / 4; background: linear-gradient(135deg, #FFE08A, #FF8A3D, #FF5C8A);">
+      <div style="position: absolute; inset: 0; background: radial-gradient(120% 80% at 30% 10%, rgba(255,255,255,.4), transparent 60%);"></div>
+      <div class="cap">@marie <span>feat. Léo</span></div>
+    </div>
+    <div style="position: relative; border-radius: 18px; overflow: hidden; aspect-ratio: 3 / 4; background: linear-gradient(135deg, #5EE7DF, #2E9BF0, #7C5CFF);">
+      <div style="position: absolute; inset: 0; background: radial-gradient(120% 80% at 70% 12%, rgba(255,255,255,.4), transparent 60%);"></div>
+      <div class="cap">@tom <span>feat. Sofia</span></div>
+    </div>
+    <div style="position: relative; border-radius: 18px; overflow: hidden; aspect-ratio: 3 / 4; background: linear-gradient(135deg, #A8E063, #1FA971, #0E9E8E);">
+      <div style="position: absolute; inset: 0; background: radial-gradient(120% 80% at 30% 12%, rgba(255,255,255,.35), transparent 60%);"></div>
+      <div class="cap">@sofia <span>feat. Marie</span></div>
+    </div>
+    <div style="position: relative; border-radius: 18px; overflow: hidden; aspect-ratio: 3 / 4; background: linear-gradient(135deg, #FFB86B, #FF4D8D, #FF2D55);">
+      <div style="position: absolute; inset: 0; background: radial-gradient(120% 80% at 70% 10%, rgba(255,255,255,.4), transparent 60%);"></div>
+      <div class="cap">@leo <span>feat. Tom</span></div>
+    </div>
+    <div style="position: relative; border-radius: 18px; overflow: hidden; aspect-ratio: 3 / 4; background: linear-gradient(135deg, #FF8AD8, #8B5CF6, #5B7CFA);">
+      <div style="position: absolute; inset: 0; background: radial-gradient(120% 80% at 30% 12%, rgba(255,255,255,.35), transparent 60%);"></div>
+      <div class="cap">@marie <span>feat. Sofia</span></div>
+    </div>
+    <div style="position: relative; border-radius: 18px; overflow: hidden; aspect-ratio: 3 / 4; background: linear-gradient(135deg, #6EE7B7, #14B8A6, #0EA5E9);">
+      <div style="position: absolute; inset: 0; background: radial-gradient(120% 80% at 70% 12%, rgba(255,255,255,.4), transparent 60%);"></div>
+      <div class="cap">@tom <span>feat. Léo</span></div>
+    </div>
+  </div>
+
+  <!-- Bottom nav (Galerie actif) -->
+  <div style="position: absolute; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid #FFE0C8; padding-bottom: 18px;">
+    <div style="height: 66px; display: flex;">
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9A6B50" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+        <span style="font-size: 11px; color: #9A6B50; font-weight: 500;">Fil</span>
+      </div>
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF8A3D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+        <span style="font-size: 11px; color: #FF8A3D; font-weight: 700;">Galerie</span>
+      </div>
+      <div style="flex: 1; display: flex; align-items: center; justify-content: center;">
+        <div style="width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(90deg, #FFD600, #FF8A3D, #FF5C8A); box-shadow: 0 14px 40px -6px rgba(255,138,61,.55); display: flex; align-items: center; justify-content: center;">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+        </div>
+      </div>
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9A6B50" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+        <span style="font-size: 11px; color: #9A6B50; font-weight: 500;">Groupe</span>
+      </div>
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9A6B50" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+        <span style="font-size: 11px; color: #9A6B50; font-weight: 500;">Compte</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

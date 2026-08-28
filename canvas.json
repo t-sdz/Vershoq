@@ -1,0 +1,12 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 390, "h": 844, "title": "Fil — Snap'It" },
+    { "file": "Accueil.dc.html", "x": 490, "y": 0, "w": 390, "h": 844, "title": "Fil vide" },
+    { "file": "Galerie.dc.html", "x": 980, "y": 0, "w": 390, "h": 844, "title": "Galerie" },
+    { "file": "Compte.dc.html", "x": 1470, "y": 0, "w": 390, "h": 844, "title": "Mon compte" }
+  ],
+  "annotations": [
+    { "id": "note-intro", "x": 0, "y": -150, "w": 520, "text": "Snap'It — maquette fidèle au design de l'app (palette Solaire, Space Grotesk + Inter). 4 écrans : le Fil avec l'alerte « moment », le Fil vide, la Galerie et Mon compte." }
+  ],
+  "launch": { "view": "canvas" }
+}

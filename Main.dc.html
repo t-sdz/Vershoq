@@ -1,0 +1,108 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700;800&family=Inter:wght@400;500;600;700;800&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Inter', system-ui, sans-serif; }
+    a { color: #FF8A3D; } a:hover { color: #E5761F; }
+    .t { font-family: 'Space Grotesk', 'Inter', sans-serif; }
+  </style>
+</helmet>
+
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: linear-gradient(180deg, #FFF1D6 0%, #FFD9C2 55%, #FFC2CE 100%); color: #3D1A08;">
+
+  <!-- status area laissée vide (barre système réelle par-dessus) -->
+  <div style="height: 46px;"></div>
+
+  <!-- App bar -->
+  <div style="height: 52px; display: flex; align-items: center; justify-content: center; position: relative;">
+    <div class="t" style="font-size: 26px; font-weight: 800; letter-spacing: -1px; background: linear-gradient(90deg, #FFD600, #FF8A3D, #FF5C8A); -webkit-background-clip: text; background-clip: text; color: transparent;">Snap'It</div>
+    <div style="position: absolute; right: 12px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3D1A08" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+    </div>
+  </div>
+
+  <!-- Moment banner -->
+  <div style="margin: 8px 16px 0; padding: 14px 18px; border-radius: 20px; background: linear-gradient(90deg, #FFD600, #FF8A3D, #FF5C8A); box-shadow: 0 14px 40px -6px rgba(255,138,61,.45); display: flex; align-items: center; gap: 12px;">
+    <div style="font-size: 26px; line-height: 1;">📸</div>
+    <div style="flex: 1;">
+      <div class="t" style="color: #fff; font-size: 16px; font-weight: 800;">C'est le moment !</div>
+      <div style="color: #fff; font-size: 13px; opacity: .95;">Prends ta photo avec Léo &amp; Sofia</div>
+    </div>
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+  </div>
+
+  <!-- Photo card -->
+  <div style="margin: 16px 16px 0;">
+    <div style="border-radius: 24px; overflow: hidden; aspect-ratio: 3 / 4; position: relative; background: linear-gradient(135deg, #FFE08A 0%, #FF8A3D 55%, #FF5C8A 100%);">
+      <div style="position: absolute; inset: 0; background: radial-gradient(120% 80% at 30% 12%, rgba(255,255,255,.45), rgba(255,255,255,0) 60%);"></div>
+      <!-- deux silhouettes façon selfie -->
+      <div style="position: absolute; bottom: 0; left: 64px; width: 130px; height: 220px; background: rgba(61,26,8,.30); border-radius: 65px 65px 0 0;"></div>
+      <div style="position: absolute; bottom: 0; left: 108px; width: 74px; height: 74px; background: rgba(61,26,8,.30); border-radius: 50%;"></div>
+      <div style="position: absolute; bottom: 0; right: 58px; width: 118px; height: 200px; background: rgba(61,26,8,.22); border-radius: 59px 59px 0 0;"></div>
+      <div style="position: absolute; bottom: 0; right: 78px; width: 66px; height: 66px; background: rgba(61,26,8,.22); border-radius: 50%;"></div>
+    </div>
+  </div>
+
+  <!-- Info sous la photo -->
+  <div style="margin: 16px 16px 0; display: flex; align-items: center; gap: 12px;">
+    <div style="width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #FFD600, #FF8A3D, #FF5C8A); border: 1.5px solid rgba(255,255,255,.35); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 18px;">M</div>
+    <div style="flex: 1; min-width: 0;">
+      <div style="font-size: 19px; line-height: 1.15;">
+        <span class="t" style="color: #3D1A08; font-weight: 800;">@marie</span><span style="color: #9A6B50; font-size: 15px; font-weight: 500;"> feat. </span><span class="t" style="color: #FF8A3D; font-weight: 800;">Léo</span>
+      </div>
+      <div style="color: #9A6B50; font-size: 11px; margin-top: 2px;">28/08/2026 à 14:32</div>
+    </div>
+    <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.24); display: flex; align-items: center; justify-content: center;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+    </div>
+  </div>
+
+  <!-- Swipe hint -->
+  <div style="display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 14px; color: #9A6B50;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9A6B50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+    <span style="font-size: 11px;">Swipe pour la suite</span>
+  </div>
+
+  <!-- Bottom nav -->
+  <div style="position: absolute; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid #FFE0C8; padding-bottom: 18px;">
+    <div style="height: 66px; display: flex;">
+      <!-- Fil (actif) -->
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF8A3D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+        <span style="font-size: 11px; color: #FF8A3D; font-weight: 700;">Fil</span>
+      </div>
+      <!-- Galerie -->
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9A6B50" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+        <span style="font-size: 11px; color: #9A6B50; font-weight: 500;">Galerie</span>
+      </div>
+      <!-- Capture (FAB) -->
+      <div style="flex: 1; display: flex; align-items: center; justify-content: center;">
+        <div style="width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(90deg, #FFD600, #FF8A3D, #FF5C8A); box-shadow: 0 14px 40px -6px rgba(255,138,61,.55); display: flex; align-items: center; justify-content: center;">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+        </div>
+      </div>
+      <!-- Groupe -->
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9A6B50" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+        <span style="font-size: 11px; color: #9A6B50; font-weight: 500;">Groupe</span>
+      </div>
+      <!-- Compte -->
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9A6B50" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+        <span style="font-size: 11px; color: #9A6B50; font-weight: 500;">Compte</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
