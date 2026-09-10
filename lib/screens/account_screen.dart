@@ -89,7 +89,7 @@ class _AccountScreenState extends State<AccountScreen> {
               children: [
                 _buildProfileCard(),
                 const SizedBox(height: 28),
-                Text('MES GROUPES',
+                Text('MON GROUPE',
                     style: TextStyle(
                         color: VTheme.warmMuted,
                         fontSize: 11,
@@ -133,25 +133,52 @@ class _AccountScreenState extends State<AccountScreen> {
                         ),
                       )),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _open(const JoinGroupScreen()),
-                        icon: const Icon(Icons.group_add_outlined),
-                        label: const Text('Rejoindre'),
+                // Un seul groupe à la fois : on ne propose « Rejoindre / Créer »
+                // que si l'utilisateur n'est dans aucun groupe. Pour en changer,
+                // il doit d'abord quitter l'actuel (onglet Groupe).
+                if (_groups.isEmpty)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _open(const JoinGroupScreen()),
+                          icon: const Icon(Icons.group_add_outlined),
+                          label: const Text('Rejoindre'),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: () => _open(const CreateGroupScreen()),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Créer'),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () => _open(const CreateGroupScreen()),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Créer'),
+                        ),
                       ),
+                    ],
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: VTheme.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: VTheme.hairline),
                     ),
-                  ],
-                ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline_rounded,
+                            color: VTheme.warmMuted, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Tu ne peux faire partie que d\'un seul groupe. Pour en rejoindre un autre, quitte d\'abord celui-ci (onglet Groupe).',
+                            style: TextStyle(
+                                color: VTheme.warmMuted, fontSize: 13, height: 1.35),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 32),
                 _tile(
                   icon: Icons.settings_outlined,

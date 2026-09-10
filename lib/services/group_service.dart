@@ -49,6 +49,12 @@ class GroupService {
   }) async {
     _validate(name: name, username: username, email: email);
 
+    // Un seul groupe à la fois : il faut quitter l'actuel avant d'en créer un.
+    if (await getCurrentGroup() != null) {
+      throw GroupException(
+          'Tu fais déjà partie d\'un groupe. Quitte-le d\'abord pour en créer un autre.');
+    }
+
     final code = await _generateUniqueCode();
     final now = DateTime.now();
 
@@ -106,6 +112,14 @@ class GroupService {
     String? memberPhotoBase64,
   }) async {
     _validate(username: username, email: email);
+
+    // Un seul groupe à la fois : il faut quitter l'actuel avant d'en rejoindre
+    // un autre.
+    if (await getCurrentGroup() != null) {
+      throw GroupException(
+          'Tu fais déjà partie d\'un groupe. Quitte-le d\'abord pour en rejoindre un autre.');
+    }
+
     final normalizedCode = code.trim().toUpperCase();
     if (normalizedCode.length < 4) {
       throw GroupException('Code de groupe invalide.');
