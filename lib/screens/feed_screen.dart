@@ -15,10 +15,7 @@ import '../services/push_service.dart';
 import '../services/storage_service.dart';
 import '../services/theme_service.dart';
 import '../theme/v_theme.dart';
-import 'account_screen.dart';
 import 'camera_screen.dart';
-import 'gallery_screen.dart';
-import 'groups_screen.dart';
 import 'settings_screen.dart';
 
 class FeedScreen extends StatefulWidget {
@@ -32,7 +29,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   Group? _group;
   GroupMember? _user;
   List<GroupMember> _members = [];
-  List<JoinedGroup> _joined = [];
   String? _activeMoment;
   bool _loading = true;
   final Set<String> _subscribedTopics = {};
@@ -93,18 +89,10 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         _group   = group;
         _user    = user;
         _members = members;
-        _joined  = joined;
         _activeMoment = activeMoment;
         _loading = false;
       });
     }
-  }
-
-  Future<void> _switchGroup(String groupId) async {
-    if (_group?.id == groupId) return;
-    setState(() => _loading = true);
-    await GroupService.setActiveGroup(groupId);
-    await _load();
   }
 
   @override
@@ -171,259 +159,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               .then((_) => _load()),
         ),
       ],
-    );
-  }
-
-  Widget _groupAvatar() {
-    final photo = _group?.photoBase64;
-    if (photo == null) return const Text('☀️', style: TextStyle(fontSize: 32));
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white54, width: 2),
-        image: DecorationImage(image: MemoryImage(base64Decode(photo)), fit: BoxFit.cover),
-      ),
-    );
-  }
-
-  Drawer _buildDrawer() {
-    return Drawer(
-      backgroundColor: VTheme.bgWarm,
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Header
-            Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: VTheme.sunriseGradient,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: VTheme.glowSolar,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _groupAvatar(),
-                  const SizedBox(height: 8),
-                  Text(
-                    _group?.name ?? "Snap'It",
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900),
-                  ),
-                  if (_members.isNotEmpty)
-                    Text(
-                      '${_members.length} membre${_members.length > 1 ? 's' : ''}',
-                      style: const TextStyle(
-                          color: Colors.white70, fontSize: 13),
-                    ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            // Members avatars
-            if (_members.isNotEmpty) ...[
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20),
-                child: Text('MEMBRES',
-                    style: TextStyle(
-                        color: VTheme.warmMuted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 2)),
-              ),
-              const SizedBox(height: 10),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: _members.asMap().entries.map((e) {
-                    final i = e.key;
-                    final m = e.value;
-                    final isMe = m.email == _user?.email;
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            gradient: VTheme.avatarGradients[
-                                i % VTheme.avatarGradients.length],
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Text(
-                              m.username.isNotEmpty
-                                  ? m.username[0].toUpperCase()
-                                  : '?',
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          isMe ? 'Toi' : m.username.split(' ').first,
-                          style: TextStyle(
-                              color: VTheme.warmMuted, fontSize: 10),
-                        ),
-                      ],
-                    );
-                  }).toList(),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Divider(indent: 16, endIndent: 16, color: VTheme.hairline),
-            ],
-
-            // Sélecteur de groupes (multi-groupes)
-            if (_joined.isNotEmpty) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 6),
-                child: Text('MES GROUPES',
-                    style: TextStyle(
-                        color: VTheme.warmMuted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 2)),
-              ),
-              ..._joined.map((j) {
-                final active = j.group.id == _group?.id;
-                return ListTile(
-                  dense: true,
-                  leading: Icon(
-                      active
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_unchecked,
-                      color: active ? VTheme.orange : VTheme.warmMuted,
-                      size: 20),
-                  title: Text(j.group.name,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          color: VTheme.warmDark,
-                          fontWeight:
-                              active ? FontWeight.w700 : FontWeight.w500)),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _switchGroup(j.group.id);
-                  },
-                );
-              }),
-              const SizedBox(height: 4),
-              Divider(indent: 16, endIndent: 16, color: VTheme.hairline),
-            ],
-
-            // Nav items
-            _DrawerTile(
-              icon: Icons.account_circle_outlined,
-              label: 'Mon compte',
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const AccountScreen()));
-              },
-            ),
-            _DrawerTile(
-              icon: Icons.photo_library_outlined,
-              label: 'Galerie du groupe',
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const GalleryScreen()));
-              },
-            ),
-            _DrawerTile(
-              icon: Icons.person_outline,
-              label: 'Ma galerie',
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) =>
-                            const GalleryScreen(personalOnly: true)));
-              },
-            ),
-            _DrawerTile(
-              icon: Icons.group_outlined,
-              label: 'Gérer le groupe',
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const GroupsScreen()));
-              },
-            ),
-            _DrawerTile(
-              icon: Icons.settings_outlined,
-              label: 'Paramètres',
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context,
-                        MaterialPageRoute(
-                            builder: (_) => const SettingsScreen()))
-                    .then((_) => _load());
-              },
-            ),
-
-            const Spacer(),
-
-            if (_group != null)
-              _DrawerTile(
-                icon: Icons.logout_rounded,
-                label: 'Quitter le groupe',
-                color: VTheme.coral,
-                onTap: () async {
-                  Navigator.pop(context);
-                  final leftName = _group?.name ?? '';
-                  final ok = await showDialog<bool>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: Text('Quitter « $leftName » ?'),
-                      content: const Text(
-                          'Tu devras rejoindre avec un nouveau code.'),
-                      actions: [
-                        TextButton(
-                            onPressed: () => Navigator.pop(ctx, false),
-                            child: const Text('Annuler')),
-                        TextButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            child: const Text('Quitter',
-                                style: TextStyle(color: VTheme.coral))),
-                      ],
-                    ),
-                  );
-                  if (ok == true && mounted) {
-                    await GroupService.leaveGroup();
-                    final remaining = await GroupService.getJoinedGroups();
-                    if (!mounted) return;
-                    if (remaining.isNotEmpty) {
-                      // Il reste d'autres groupes : on recharge le feed sur le
-                      // nouveau groupe actif.
-                      _load();
-                    } else {
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(builder: (_) => const AccountScreen()),
-                        (_) => false,
-                      );
-                    }
-                  }
-                },
-              ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
     );
   }
 }
