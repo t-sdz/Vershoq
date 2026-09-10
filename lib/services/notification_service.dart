@@ -139,10 +139,16 @@ class NotificationService {
   /// Durée pendant laquelle on peut encore prendre la photo après le début du
   /// moment. Sans compte à rebours (pas de pression), on laisse tout le temps
   /// (6 h). Avec compte à rebours, au moins 15 min pour ne pas rater le coche.
+  // Compte à rebours : réglage du GROUPE (fixé par l'admin, partagé par tous),
+  // et non plus un réglage local par téléphone.
+  static Future<bool> _cdEnabled() async =>
+      (await GroupService.getCurrentGroup())?.notifCountdownEnabled ?? false;
+  static Future<int> _cdSeconds() async =>
+      (await GroupService.getCurrentGroup())?.notifCountdownSeconds ?? 15;
+
   static Future<int> _momentWindowMs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final enabled = prefs.getBool('countdown_enabled') ?? false;
-    final c = prefs.getInt('countdown_seconds') ?? 15;
+    final enabled = await _cdEnabled();
+    final c = await _cdSeconds();
     if (enabled && c > 0) {
       return max(c * 1000, 15 * 60 * 1000);
     }
@@ -152,7 +158,6 @@ class NotificationService {
   /// Cancels all pending notifications and schedules fresh random ones.
   static Future<void> scheduleRandom() async {
     if (kIsWeb) return;
-    final prefs = await SharedPreferences.getInstance();
 
     // On annule UNIQUEMENT les notifs planifiées (à venir), pas celles déjà
     // affichées dans la barre — sinon ouvrir l'app effacerait la notif push
@@ -172,6 +177,8 @@ class NotificationService {
     final group = await GroupService.getCurrentGroup();
     if (group == null) return;
 
+    final prefs = await SharedPreferences.getInstance();
+
     // Config partagée par tout le groupe (fixée par l'admin) → tous les
     // téléphones utilisent les mêmes réglages = notifs synchronisées.
     if (!group.notifEnabled) return;
@@ -183,9 +190,9 @@ class NotificationService {
     final minNames = group.notifMinNames;
     final maxNames = group.notifMaxNames;
 
-    // Durée du compte à rebours de la notif (paramètre local « Compte à
-    // rebours ») ; 2 min par défaut si la valeur est à 0.
-    final countdownSeconds = prefs.getInt('countdown_seconds') ?? 15;
+    // Durée du compte à rebours de la notif (réglage « Compte à rebours » du
+    // groupe) ; 2 min par défaut si la valeur est à 0.
+    final countdownSeconds = group.notifCountdownSeconds;
     final durationSeconds = countdownSeconds > 0 ? countdownSeconds : 120;
 
     final now = DateTime.now();
@@ -415,8 +422,7 @@ class NotificationService {
   /// Le libellé peut être vide (le téléphone n'a pas encore le cache des
   /// prénoms) : on arme quand même le moment pour que la bannière apparaisse.
   static Future<void> registerRemoteMoment(String label) async {
-    final prefs = await SharedPreferences.getInstance();
-    final c = prefs.getInt('countdown_seconds') ?? 15;
+    final c = await _cdSeconds();
     await _addMoment(label, c > 0 ? c : 120);
     // Réveille le feed s'il est ouvert (isolat principal uniquement).
     momentTick.value++;
@@ -543,8 +549,7 @@ class NotificationService {
     // Le chrono qui descend + la disparition automatique ne s'appliquent QUE si
     // le compte à rebours est activé. Sinon la notif reste (pas de pression de
     // temps) pour qu'on ait le temps de prendre la photo.
-    final prefs = await SharedPreferences.getInstance();
-    final countdownOn = prefs.getBool('countdown_enabled') ?? false;
+    final countdownOn = await _cdEnabled();
     final deadline = scheduledTime.add(Duration(seconds: durationSeconds));
 
     await _plugin.zonedSchedule(
@@ -636,8 +641,7 @@ class NotificationService {
     final hi = (group?.notifMaxNames ?? 3).clamp(lo, maxTargets);
     final count = lo + random.nextInt(hi - lo + 1);
     final label = _joinNames(shuffled.take(count).toList());
-    final prefs = await SharedPreferences.getInstance();
-    final countdownSeconds = prefs.getInt('countdown_seconds') ?? 15;
+    final countdownSeconds = group?.notifCountdownSeconds ?? 15;
     // Enregistre le moment → l'app ouvrira la caméra / affichera la bannière.
     await _addMoment(label, countdownSeconds > 0 ? countdownSeconds : 120);
     await sendTestNotification(label);

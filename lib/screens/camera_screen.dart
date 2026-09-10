@@ -6,8 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:permission_handler/permission_handler.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/group_service.dart';
 import '../services/notification_service.dart';
 import '../services/storage_service.dart';
 import '../theme/v_theme.dart';
@@ -45,9 +45,11 @@ class _CameraScreenState extends State<CameraScreen>
   }
 
   Future<void> _bootstrap() async {
-    final prefs = await SharedPreferences.getInstance();
-    _countdownEnabled = prefs.getBool('countdown_enabled') ?? false;
-    _countdownSeconds = prefs.getInt('countdown_seconds') ?? 15;
+    // Compte à rebours : réglage du GROUPE (fixé par l'admin), plus un réglage
+    // local par téléphone → tout le monde a le même chrono.
+    final group = await GroupService.getCurrentGroup();
+    _countdownEnabled = group?.notifCountdownEnabled ?? false;
+    _countdownSeconds = group?.notifCountdownSeconds ?? 15;
     await _initCamera();
   }
 

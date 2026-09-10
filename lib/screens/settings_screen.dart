@@ -2,7 +2,6 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/group_service.dart';
 import '../services/notification_service.dart';
@@ -53,7 +52,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
     // Version fraîche depuis Firestore (admins à jour), pas le cache local.
     final group = await GroupService.refreshCurrentGroup();
     final user = await GroupService.getCurrentUser();
@@ -72,9 +70,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _minNames = group?.notifMinNames ?? 1;
         _maxNames = group?.notifMaxNames ?? 3;
         _extraNames = List<String>.from(group?.extraNames ?? const []);
-        // Compte à rebours : local.
-        _countdownEnabled = prefs.getBool('countdown_enabled') ?? false;
-        _countdownSeconds = prefs.getInt('countdown_seconds') ?? 15;
+        // Compte à rebours : réglage du groupe (fixé par l'admin), partagé.
+        _countdownEnabled = group?.notifCountdownEnabled ?? false;
+        _countdownSeconds = group?.notifCountdownSeconds ?? 15;
         _loading = false;
       });
     }
@@ -90,6 +88,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'minNames': _minNames,
         'maxNames': _maxNames,
         'extraNames': _extraNames,
+        'countdownEnabled': _countdownEnabled,
+        'countdownSeconds': _countdownSeconds,
       };
 
   Future<void> _saveConfig({String? message}) async {
@@ -114,17 +114,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _saveCountdownSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('countdown_enabled', _countdownEnabled);
-    await prefs.setInt('countdown_seconds', _countdownSeconds);
-    // Replanifie pour que le chrono des notifs suive la nouvelle durée.
-    await NotificationService.cancelAll();
-    await NotificationService.scheduleRandom();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Compte à rebours enregistré !')),
-      );
-    }
+    // Compte à rebours partagé par tout le groupe → on l'enregistre dans la
+    // config du groupe (comme les autres réglages admin).
+    await _saveConfig(message: 'Compte à rebours enregistré !');
   }
 
   @override
@@ -677,7 +669,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: Text('Activer le compte à rebours',
                   style: TextStyle(color: VTheme.warmDark)),
               subtitle: Text(
-                'Capture automatique à la fin du temps',
+                'Capture auto en fin de temps · pour tout le groupe',
                 style: TextStyle(color: VTheme.warmMuted, fontSize: 12),
               ),
               value: _countdownEnabled,

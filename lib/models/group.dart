@@ -54,6 +54,11 @@ class Group {
   int get notifMinNames => _cfgInt('minNames', 1);
   int get notifMaxNames => _cfgInt('maxNames', 3);
 
+  /// Compte à rebours, désormais fixé par l'admin pour tout le groupe (avant :
+  /// réglage local par téléphone). Durée en secondes.
+  bool get notifCountdownEnabled => _cfgBool('countdownEnabled', false);
+  int get notifCountdownSeconds => _cfgInt('countdownSeconds', 15);
+
   /// Prénoms ajoutés par l'admin (personnes pas forcément sur l'app) qui
   /// peuvent apparaître dans les notifs « prends une photo avec X ». Partagés
   /// par tout le groupe via notifConfig.
