@@ -252,10 +252,17 @@ class NotificationService {
     // Prénoms ajoutés par l'admin : ajoutés comme « cibles » possibles (email
     // fictif « extra:… » qui ne correspond à personne → jamais notifiés eux-
     // mêmes, mais peuvent apparaître dans « prends une photo avec X »).
+    // Dédoublonnage : on ignore un prénom en plus qui correspond déjà au pseudo
+    // d'un membre (sinon la même personne apparaît deux fois).
+    final memberNames =
+        members.map((m) => m.username.trim().toLowerCase()).toSet();
     for (final n in group.extraNames) {
-      final e = 'extra:${n.trim().toLowerCase()}';
+      final key = n.trim().toLowerCase();
+      if (key.isEmpty || memberNames.contains(key)) continue;
+      final e = 'extra:$key';
       if (members.any((m) => m.email == e)) continue;
       members.add(GroupMember(username: n.trim(), email: e, joinedAt: now));
+      memberNames.add(key);
     }
     members.sort((a, b) => a.email.compareTo(b.email));
     if (members.length < 2) return; // il faut au moins 2 personnes
@@ -399,38 +406,63 @@ class NotificationService {
       return _joinNames(shuffled.take(count).toList());
     }
 
-    // Partition SYNCHRONISÉE en petits groupes : liste COMPLÈTE (moi + membres +
-    // « prénoms en plus »), triée pareil et mélangée avec la MÊME graine sur
-    // tous les téléphones, puis découpée en groupes. Je renvoie les AUTRES de
-    // mon groupe (eux ont mon nom) → réciproque. Taille dans [min+1, max+1], et
-    // personne ne se retrouve sans nom.
-    final full = [...all];
-    if (self != null && self.isNotEmpty &&
-        !full.any((x) => x.trim().toLowerCase() == self)) {
-      // Sécurité : si le cache n'inclut pas mon nom, je m'ajoute.
-      final me = (await GroupService.getCurrentUser())?.username.trim();
-      if (me != null && me.isNotEmpty) full.add(me);
+    // Partition SYNCHRONISÉE basée sur l'IDENTITÉ (email), pas le pseudo :
+    // - « moi » est exclu par EMAIL → je ne me vois jamais, même si mon pseudo
+    //   dans le groupe diffère de mon pseudo de profil ;
+    // - les « prénoms en plus » qui correspondent déjà à un membre sont ignorés
+    //   (évite qu'une même personne apparaisse deux fois).
+    final selfEmail =
+        (await GroupService.getCurrentUser())?.email.trim().toLowerCase() ?? '';
+
+    // Liste AUTORITAIRE des membres (email + pseudo) depuis Firestore → même
+    // liste sur tous les téléphones. Repli sur le cache si indisponible.
+    final now = DateTime.now();
+    List<GroupMember> pool;
+    try {
+      pool = group != null ? await GroupService.getMembers(group.id) : [];
+    } catch (_) {
+      pool = [];
     }
-    // Tri TOTAL et stable, identique sur tous les téléphones (sinon l'ordre
-    // diffère d'un appareil à l'autre et casse la réciprocité).
-    full.sort((a, b) {
-      final c = a.toLowerCase().compareTo(b.toLowerCase());
-      return c != 0 ? c : a.compareTo(b);
-    });
-    if (full.length < 2 || self == null || self.isEmpty) return null;
+    if (pool.isEmpty) {
+      pool = cached
+          .map((n) => GroupMember(
+              username: n, email: n.trim().toLowerCase(), joinedAt: now))
+          .toList();
+    }
+    // Prénoms en plus, dédoublonnés contre les pseudos de membres.
+    final seen = pool.map((m) => m.username.trim().toLowerCase()).toSet();
+    for (final n in (group?.extraNames ?? const <String>[])) {
+      final key = n.trim().toLowerCase();
+      if (key.isEmpty || seen.contains(key)) continue;
+      pool.add(GroupMember(username: n.trim(), email: 'extra:$key', joinedAt: now));
+      seen.add(key);
+    }
+    // Je dois être dans la liste pour être réparti ; sinon je m'ajoute.
+    if (selfEmail.isNotEmpty &&
+        !pool.any((m) => m.email.trim().toLowerCase() == selfEmail)) {
+      final me = await GroupService.getCurrentUser();
+      if (me != null) pool.add(me);
+    }
+    if (pool.length < 2 || selfEmail.isEmpty) return null;
+
+    // Tri stable par email (unique) → ordre identique sur tous les téléphones.
+    pool.sort((a, b) =>
+        a.email.trim().toLowerCase().compareTo(b.email.trim().toLowerCase()));
 
     final rng = Random(seed);
-    final total = full.length;
+    final total = pool.length;
     final loS = ((group?.notifMinNames ?? 1) + 1).clamp(2, total);
     final hiS = ((group?.notifMaxNames ?? 3) + 1).clamp(loS, total);
     final cap = loS + rng.nextInt(hiS - loS + 1);
-    final ordered = [...full]..shuffle(rng);
-    final idx = ordered.indexWhere((x) => x.trim().toLowerCase() == self);
+    final ordered = [...pool]..shuffle(rng);
+    final idx =
+        ordered.indexWhere((m) => m.email.trim().toLowerCase() == selfEmail);
     if (idx < 0) return null;
     final b = _groupBounds(total, idx, cap);
     final others = ordered
         .sublist(b[0], b[1])
-        .where((x) => x.trim().toLowerCase() != self)
+        .where((m) => m.email.trim().toLowerCase() != selfEmail)
+        .map((m) => m.username)
         .toList();
     if (others.isEmpty) return null;
     return _joinNames(others);
