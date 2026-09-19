@@ -186,8 +186,6 @@ class NotificationService {
     final endHour = timeLimitEnabled ? group.notifEndHour : 23;
     final minCount = group.notifMinCount;
     final maxCount = group.notifMaxCount;
-    final minNames = group.notifMinNames;
-    final maxNames = group.notifMaxNames;
 
     // Durée du compte à rebours de la notif (réglage « Compte à rebours » du
     // groupe) ; 2 min par défaut si la valeur est à 0.
@@ -267,30 +265,23 @@ class NotificationService {
             base.year, base.month, base.day, offset ~/ 60, offset % 60);
         if (!scheduled.isAfter(now)) continue;
 
-        // Moment synchronisé : même sous-groupe tiré sur tous les téléphones.
+        // Appariement RÉCIPROQUE et EXCLUSIF : on mélange les VRAIS membres
+        // (identiques sur tous les téléphones grâce à la graine commune) puis on
+        // les apparie 2 par 2. Mon binôme = la personne à photographier — et
+        // elle a mon nom de son côté (Max↔Tess). Personne d'autre ne les a.
         final mRng = Random(_stableHash('${group.id}|$dayNum|$i'));
-        final pool = [...members]..shuffle(mRng);
-        // Nombre de noms (personnes à photographier) borné par l'admin, puis
-        // par la taille du groupe. Le sous-groupe = noms + 1 (soi inclus).
-        final maxTargets = members.length - 1;
-        final lo = minNames.clamp(1, maxTargets);
-        final hi = maxNames.clamp(lo, maxTargets);
-        final namesCount = lo + mRng.nextInt(hi - lo + 1);
-        final subset = pool.take(namesCount + 1).toList();
-
-        // Je ne suis notifié que si je fais partie du moment.
-        final inMoment =
-            subset.any((m) => m.email.trim().toLowerCase() == selfEmail);
-        if (!inMoment) continue;
-
-        // Les personnes à photographier = les autres du sous-groupe.
-        final targets = subset
-            .where((m) => m.email.trim().toLowerCase() != selfEmail)
-            .map((m) => m.username)
-            .toList();
-        if (targets.isEmpty) continue;
-
-        final label = _joinNames(targets);
+        final realMembers = members
+            .where((m) => !m.email.startsWith('extra:'))
+            .toList()
+          ..shuffle(mRng);
+        final myIdx = realMembers
+            .indexWhere((m) => m.email.trim().toLowerCase() == selfEmail);
+        if (myIdx < 0) continue;
+        // Paires (0-1, 2-3, …) : mon binôme est le voisin dans ma paire.
+        final partnerIdx = myIdx.isEven ? myIdx + 1 : myIdx - 1;
+        // Nombre impair : la dernière personne n'a pas de binôme ce tour-ci.
+        if (partnerIdx < 0 || partnerIdx >= realMembers.length) continue;
+        final label = realMembers[partnerIdx].username;
         moments.add({
           't': scheduled.millisecondsSinceEpoch,
           'd': durationSeconds,
@@ -355,10 +346,8 @@ class NotificationService {
     final group = await GroupService.getCurrentGroup();
     // Membres du groupe + prénoms ajoutés par l'admin (mêmes sur tous les
     // téléphones → réciprocité préservée).
-    final all = <String>[
-      ...await GroupService.getCachedMemberNames(),
-      ...?group?.extraNames,
-    ];
+    final cached = await GroupService.getCachedMemberNames();
+    final all = <String>[...cached, ...?group?.extraNames];
     final self =
         (await GroupService.getCurrentUser())?.username.trim().toLowerCase();
 
@@ -377,44 +366,33 @@ class NotificationService {
       return _joinNames(shuffled.take(count).toList());
     }
 
-    // Appariement déterministe : liste COMPLÈTE (moi inclus), triée pareil
-    // sur tous les appareils, mélangée avec la MÊME graine, puis découpée en
-    // groupes de taille identique. Chacun cherche son groupe et renvoie les
-    // AUTRES membres de son groupe.
-    final full = [...all];
+    // Appariement RÉCIPROQUE et EXCLUSIF : uniquement les VRAIS membres (pas les
+    // « prénoms en plus », qui ne peuvent pas rendre la photo), triés pareil sur
+    // tous les téléphones et mélangés avec la MÊME graine, puis appariés 2 par 2.
+    // Mon binôme = la personne à photographier ; elle a mon nom de son côté.
+    final full = [...cached];
     if (self != null && self.isNotEmpty &&
         !full.any((n) => n.trim().toLowerCase() == self)) {
       // Sécurité : si le cache n'inclut pas mon nom, je m'ajoute.
       final me = (await GroupService.getCurrentUser())?.username.trim();
       if (me != null && me.isNotEmpty) full.add(me);
     }
-    // Tri TOTAL et stable, identique sur tous les téléphones : d'abord par nom
-    // en minuscules, puis par nom exact en cas d'égalité (sinon l'ordre des
-    // noms identiques pourrait différer d'un appareil à l'autre et casser la
-    // réciprocité).
+    // Tri TOTAL et stable, identique sur tous les téléphones (sinon l'ordre
+    // diffère d'un appareil à l'autre et casse la réciprocité).
     full.sort((a, b) {
       final c = a.toLowerCase().compareTo(b.toLowerCase());
       return c != 0 ? c : a.compareTo(b);
     });
     if (full.length < 2 || self == null || self.isEmpty) return null;
 
-    final rng = Random(seed);
-    // Taille de groupe = (nb de noms par photo) + 1 (pour m'inclure), tirée de
-    // façon déterministe dans [min+1, max+1], bornée par la taille du groupe.
-    final lo = ((group?.notifMinNames ?? 1) + 1).clamp(2, full.length);
-    final hi = ((group?.notifMaxNames ?? 3) + 1).clamp(lo, full.length);
-    final clusterSize = lo + rng.nextInt(hi - lo + 1);
-    final ordered = [...full]..shuffle(rng);
-
+    final ordered = [...full]..shuffle(Random(seed));
     final idx = ordered.indexWhere((n) => n.trim().toLowerCase() == self);
     if (idx < 0) return null;
-    final start = (idx ~/ clusterSize) * clusterSize;
-    final end = min(start + clusterSize, ordered.length);
-    final cluster = ordered.sublist(start, end);
-    final others =
-        cluster.where((n) => n.trim().toLowerCase() != self).toList();
-    if (others.isEmpty) return null;
-    return _joinNames(others);
+    // Paires (0-1, 2-3, …) : mon binôme est le voisin dans ma paire.
+    final partnerIdx = idx.isEven ? idx + 1 : idx - 1;
+    // Nombre impair : pas de binôme pour moi ce tour-ci.
+    if (partnerIdx < 0 || partnerIdx >= ordered.length) return null;
+    return ordered[partnerIdx];
   }
 
   /// Enregistre un moment reçu par push (FCM) → bannière + caméra.
