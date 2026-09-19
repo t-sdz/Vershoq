@@ -8,7 +8,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
-import '../config.dart';
 import '../models/group.dart';
 import 'group_service.dart';
 import 'names_service.dart';
@@ -167,10 +166,10 @@ class NotificationService {
       await _plugin.cancel(p.id);
     }
 
-    // Si le serveur (cron) est configuré, c'est LUI qui envoie les alertes
-    // automatiques — à tout le monde en même temps. On ne programme donc RIEN
-    // en local (sinon on aurait des notifs en double, non synchronisées).
-    if (AppConfig.pushEnabled) return;
+    // Planification LOCALE des alertes automatiques (chaque téléphone programme
+    // ses notifs) : c'est la base qui marche de façon fiable, même sans serveur.
+    // Le bouton admin « Envoyer une notif au groupe » reste, lui, simultané via
+    // le push serveur.
 
     // Les notifications sont liées au groupe : sans groupe courant, on
     // n'en planifie aucune (corrige les notifs fantômes après un départ).
