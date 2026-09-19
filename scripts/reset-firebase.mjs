@@ -7,21 +7,22 @@
 //   2) Dans un dossier à part :
 //        mkdir ~/reset-snapit && cd ~/reset-snapit
 //        npm init -y && npm i firebase-admin
-//        # copie ce fichier + la clé (renommée serviceAccount.json) dans ce dossier
-//   3) Lance :
-//        node reset-firebase.mjs            # vide groups + users (Firestore)
-//        node reset-firebase.mjs --auth     # + supprime aussi les comptes de connexion
-//
-// (Le chemin de la clé peut aussi être donné via SA_PATH=/chemin/cle.json)
+//        # copie ce fichier + la clé dans ce dossier
+//   3) Lance (SA_PATH = chemin vers ta clé) :
+//        SA_PATH=/chemin/cle.json node reset-firebase.mjs            # vide Firestore
+//        SA_PATH=/chemin/cle.json node reset-firebase.mjs --auth     # + comptes de connexion
+//     (par défaut il cherche ./serviceAccount.json)
 
-import admin from 'firebase-admin';
 import { readFileSync } from 'node:fs';
+import { initializeApp, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 
 const KEY_PATH = process.env.SA_PATH || './serviceAccount.json';
 const sa = JSON.parse(readFileSync(KEY_PATH, 'utf8'));
 
-admin.initializeApp({ credential: admin.credential.cert(sa) });
-const db = admin.firestore();
+initializeApp({ credential: cert(sa) });
+const db = getFirestore();
 
 const DELETE_AUTH = process.argv.includes('--auth');
 
@@ -32,12 +33,13 @@ async function wipeCollection(name) {
 }
 
 async function wipeAuth() {
+  const auth = getAuth();
   console.log('Suppression des comptes Auth (connexion)…');
   let next;
   do {
-    const res = await admin.auth().listUsers(1000, next);
+    const res = await auth.listUsers(1000, next);
     const uids = res.users.map((u) => u.uid);
-    if (uids.length) await admin.auth().deleteUsers(uids);
+    if (uids.length) await auth.deleteUsers(uids);
     next = res.pageToken;
   } while (next);
   console.log('  ✓ comptes Auth supprimés');
