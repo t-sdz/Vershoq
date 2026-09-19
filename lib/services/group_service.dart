@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/group.dart';
 import 'notification_service.dart';
 import 'push_service.dart';
+import 'user_profile_service.dart';
 
 /// Exception métier renvoyée au formulaire pour affichage utilisateur.
 class GroupException implements Exception {
@@ -243,6 +244,22 @@ class GroupService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_currentUserKey, jsonEncode(updated.toMap()));
     }
+  }
+
+  /// Auto-réparation : si mon pseudo de profil a changé (ou a été changé sur une
+  /// ancienne version), on remplace l'ancien pseudo dans mes fiches membre. À
+  /// appeler à l'ouverture du fil, pour que le changement de pseudo soit
+  /// toujours pris en compte partout.
+  static Future<void> healMyMemberUsername() async {
+    try {
+      final profile = await UserProfileService.current();
+      if (profile == null) return;
+      final pu = profile.username.trim();
+      if (pu.isEmpty) return;
+      final me = await getCurrentUser();
+      if (me != null && me.username.trim() == pu) return; // déjà à jour
+      await syncMyMemberInfo(email: profile.email, username: pu);
+    } catch (_) {}
   }
 
   // ---------------------------------------------------------------------------

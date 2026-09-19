@@ -66,6 +66,8 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   Future<void> _load() async {
     // refreshCurrentGroup détecte un groupe supprimé et bascule automatiquement.
     final group = await GroupService.refreshCurrentGroup();
+    // Auto-répare ma fiche membre si mon pseudo a changé (remplace l'ancien).
+    await GroupService.healMyMemberUsername();
     final user  = await GroupService.getCurrentUser();
     final joined = await GroupService.getJoinedGroups();
     // Abonne l'appareil aux notifs push des NOUVEAUX groupes seulement
