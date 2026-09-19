@@ -1,19 +1,28 @@
 import 'dart:convert';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../config.dart';
+import '../firebase_options.dart';
 import 'group_service.dart';
 import 'notification_service.dart';
 
-/// Rafraîchit la config du groupe (dont les prénoms ajoutés par l'admin) avant
-/// de calculer l'appariement, pour que tous les téléphones utilisent la même
-/// liste et restent réciproques. Ignoré si hors-ligne (garde le cache).
+/// Rafraîchit, depuis Firestore (source unique de vérité), la config du groupe
+/// (dont les prénoms ajoutés par l'admin) ET la liste des membres, juste avant
+/// de calculer l'appariement. Ainsi TOUS les téléphones partent de la MÊME
+/// liste → mêmes groupes → réciprocité garantie (Tess↔Max). Ignoré si
+/// hors-ligne (on garde alors le cache).
 Future<void> _refreshGroupQuietly() async {
   try {
-    await GroupService.refreshCurrentGroup();
+    final g = await GroupService.refreshCurrentGroup();
+    if (g != null) {
+      final members = await GroupService.getMembers(g.id);
+      await GroupService.cacheMemberNames(
+          members.map((m) => m.username).toList());
+    }
   } catch (_) {}
 }
 
@@ -21,11 +30,16 @@ Future<void> _refreshGroupQuietly() async {
 /// Doit être une fonction top-level.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Chaque appareil calcule SES propres noms (les autres membres) à partir de
-  // la graine commune envoyée par le serveur -> appariement réciproque.
-  // FCM affiche déjà la notification système ; on arme juste la bannière/caméra.
-  // Même si les prénoms ne sont pas encore en cache, on arme le moment (label
-  // vide) pour que la bannière apparaisse quand l'utilisateur ouvre l'app.
+  // Cet isolat est séparé de l'app : il faut initialiser Firebase ici pour
+  // pouvoir relire la liste des membres depuis Firestore.
+  try {
+    await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform);
+  } catch (_) {}
+  // On repart de la MÊME liste que les autres téléphones (source Firestore) →
+  // mêmes groupes → réciprocité. Chaque appareil calcule ensuite SES noms à
+  // partir de la graine commune.
+  await _refreshGroupQuietly();
   try {
     final label =
         await NotificationService.buildMyMomentLabel(seed: _seedOf(message)) ??
