@@ -154,6 +154,29 @@ class NotificationService {
     return 6 * 60 * 60 * 1000;
   }
 
+  /// Répartit [total] personnes en groupes d'AU PLUS [cap] (aussi égaux que
+  /// possible, jamais de groupe géant ni de personne seule) et renvoie
+  /// [début, fin) du groupe contenant l'index [idx]. Déterministe → identique
+  /// sur tous les téléphones.
+  static List<int> _groupBounds(int total, int idx, int cap) {
+    if (cap < 2) cap = 2;
+    var numGroups = (total + cap - 1) ~/ cap; // ceil(total / cap)
+    // Chaque groupe doit avoir ≥ 2 personnes (≥ 1 nom) : on plafonne le nombre
+    // de groupes pour éviter qu'une personne se retrouve seule.
+    final maxGroups = total ~/ 2;
+    if (maxGroups >= 1 && numGroups > maxGroups) numGroups = maxGroups;
+    if (numGroups < 1) numGroups = 1;
+    final base = total ~/ numGroups;
+    final extra = total % numGroups; // les `extra` premiers groupes ont +1
+    var acc = 0;
+    for (var g = 0; g < numGroups; g++) {
+      final gs = base + (g < extra ? 1 : 0);
+      if (idx < acc + gs) return [acc, acc + gs];
+      acc += gs;
+    }
+    return [0, total];
+  }
+
   /// Cancels all pending notifications and schedules fresh random ones.
   static Future<void> scheduleRandom() async {
     if (kIsWeb) return;
@@ -274,22 +297,19 @@ class NotificationService {
         // personne ne se retrouve sans nom.
         final mRng = Random(_stableHash('${group.id}|$dayNum|$i'));
         final total = members.length;
+        // Taille max d'un groupe = nb de noms + 1 (moi inclus), dans [min+1,
+        // max+1]. La répartition équilibrée garantit qu'AUCUN groupe ne dépasse
+        // ce max (donc jamais « tout le monde ensemble »).
         final loS = (minNames + 1).clamp(2, total);
         final hiS = (maxNames + 1).clamp(loS, total);
-        final size = loS + mRng.nextInt(hiS - loS + 1);
+        final cap = loS + mRng.nextInt(hiS - loS + 1);
         final ordered = [...members]..shuffle(mRng);
         final myIdx = ordered
             .indexWhere((m) => m.email.trim().toLowerCase() == selfEmail);
         if (myIdx < 0) continue;
-        var start = (myIdx ~/ size) * size;
-        var end = min(start + size, total);
-        if (total - end == 1) end = total; // évite une personne seule en fin
-        if (end - start == 1 && start >= size) {
-          start -= size; // je suis seul → je rejoins le groupe précédent
-          end = total;
-        }
+        final b = _groupBounds(total, myIdx, cap);
         final targets = ordered
-            .sublist(start, end)
+            .sublist(b[0], b[1])
             .where((m) => m.email.trim().toLowerCase() != selfEmail)
             .map((m) => m.username)
             .toList();
@@ -403,19 +423,13 @@ class NotificationService {
     final total = full.length;
     final loS = ((group?.notifMinNames ?? 1) + 1).clamp(2, total);
     final hiS = ((group?.notifMaxNames ?? 3) + 1).clamp(loS, total);
-    final size = loS + rng.nextInt(hiS - loS + 1);
+    final cap = loS + rng.nextInt(hiS - loS + 1);
     final ordered = [...full]..shuffle(rng);
     final idx = ordered.indexWhere((x) => x.trim().toLowerCase() == self);
     if (idx < 0) return null;
-    var start = (idx ~/ size) * size;
-    var end = min(start + size, total);
-    if (total - end == 1) end = total; // évite une personne seule en fin
-    if (end - start == 1 && start >= size) {
-      start -= size; // je suis seul → je rejoins le groupe précédent
-      end = total;
-    }
+    final b = _groupBounds(total, idx, cap);
     final others = ordered
-        .sublist(start, end)
+        .sublist(b[0], b[1])
         .where((x) => x.trim().toLowerCase() != self)
         .toList();
     if (others.isEmpty) return null;
