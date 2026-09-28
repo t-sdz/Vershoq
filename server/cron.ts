@@ -224,7 +224,12 @@ export default async function () {
     times.sort((a, b) => a - b);
 
     for (let i = 0; i < times.length; i++) {
-      if (times[i] !== nowMin) continue;
+      // Le cron tourne toutes les ~15 min (plan gratuit Val Town). On déclenche
+      // toute alerte devenue due depuis le dernier passage (fenêtre glissante de
+      // 20 min) ; le marqueur `sent` évite les doublons. L'alerte part donc au
+      // plus tard ~15 min après son horaire aléatoire — mais à tout le monde en
+      // même temps, et sans accumulation.
+      if (!(times[i] <= nowMin && times[i] > nowMin - 20)) continue;
       const key = `${dateStr}|${id}|${i}`;
       if (sent[key]) continue;
       sent[key] = true;
