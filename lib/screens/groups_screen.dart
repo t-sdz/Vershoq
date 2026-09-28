@@ -92,9 +92,11 @@ class _GroupsScreenState extends State<GroupsScreen> {
         );
       }
     }
-    await GroupService.leaveGroup(group.id);
+    try {
+      await GroupService.leaveGroup(group.id);
+    } catch (_) {}
     if (!mounted) return;
-    // Revient à l'écran Compte (propre, sans groupe).
+    // Revient à l'écran Compte (propre, sans groupe) quoi qu'il arrive.
     Navigator.of(context).pop();
   }
 

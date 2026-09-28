@@ -512,9 +512,12 @@ class GroupService {
     }
 
     // Annule les notifications de l'ancien groupe et replanifie pour le
-    // nouveau groupe actif (ou rien s'il n'y en a plus).
-    await NotificationService.cancelAll();
-    await NotificationService.scheduleRandom();
+    // nouveau groupe actif (ou rien s'il n'y en a plus). Ne doit JAMAIS faire
+    // échouer le départ du groupe (sinon l'écran ne se rafraîchit pas).
+    try {
+      await NotificationService.cancelAll();
+      await NotificationService.scheduleRandom();
+    } catch (_) {}
   }
 
   static Future<void> cacheMemberNames(List<String> names) async {
