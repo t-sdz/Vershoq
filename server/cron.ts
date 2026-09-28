@@ -2,21 +2,22 @@
 // SIMULTANÉE à tout le monde, via FCM (Firebase Cloud Messaging).
 //
 // ┌─ Installation sur Val Town ───────────────────────────────────────────────┐
-// │ 1. Val Town → bouton « New » → choisis « Cron »                            │
-// │ 2. Efface le contenu par défaut et colle TOUT ce fichier                   │
-// │ 3. Règle la fréquence sur « chaque minute »  (cron : * * * * *)            │
-// │ 4. La variable d'environnement FIREBASE_SA (déjà réglée au niveau du       │
-// │    compte pour le serveur push) est réutilisée ici — rien à ajouter.       │
+// │ 1. Val Town → « New » → crée un Cron val, colle TOUT ce fichier.           │
+// │ 2. Règle le calendrier sur toutes les 15 min (minimum du plan gratuit).    │
+// │ 3. Dans « Env vars » du val, ajoute FIREBASE_SA = ta clé de service        │
+// │    Firebase (le JSON complet). C'est la seule variable nécessaire.         │
 // └────────────────────────────────────────────────────────────────────────────┘
 //
 // Comment ça marche :
-//  - chaque minute, le cron lit tes groupes dans Firestore ;
+//  - à chaque passage (~15 min), le cron lit tes groupes dans Firestore ;
 //  - pour chaque groupe, il calcule les horaires d'alerte du jour (aléatoires
 //    mais DÉTERMINISTES : mêmes horaires à chaque exécution) ;
-//  - si l'heure locale (Europe/Paris) correspond à un horaire, il envoie UN
-//    push au sujet « group_<id> » → tous les téléphones abonnés le reçoivent
-//    en même temps. Chaque téléphone calcule ensuite SES propres prénoms à
-//    partir de la graine envoyée (appariement réciproque).
+//  - il envoie UN push (sujet « group_<id> ») pour toute alerte devenue due
+//    depuis le dernier passage → tous les téléphones abonnés le reçoivent en
+//    même temps (l'alerte part au plus tard ~15 min après son horaire) ;
+//  - chaque téléphone calcule ensuite SES propres prénoms à partir de la
+//    graine envoyée (appariement réciproque). Le marqueur « sent » (Blob)
+//    évite tout doublon.
 
 import { blob } from "https://esm.town/v/std/blob";
 
