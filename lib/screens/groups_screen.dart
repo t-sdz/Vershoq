@@ -52,8 +52,50 @@ class _GroupsScreenState extends State<GroupsScreen> {
   }
 
   Future<void> _leave() async {
-    await GroupService.leaveGroup();
-    await _load();
+    final group = _current;
+    if (group == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF111111),
+        title: const Text('Quitter le groupe',
+            style: TextStyle(color: Colors.white)),
+        content: Text(
+          'Quitter « ${group.name} » ? Tu devras un code pour le rejoindre à nouveau.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child:
+                const Text('Annuler', style: TextStyle(color: Colors.white38)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Quitter',
+                style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    // Retire vraiment du groupe côté serveur (sinon on reste membre pour les
+    // autres), puis nettoie le local.
+    try {
+      final email = _user?.email ?? '';
+      if (email.isNotEmpty) await GroupService.removeMember(group.id, email);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur : $e')),
+        );
+      }
+    }
+    await GroupService.leaveGroup(group.id);
+    if (!mounted) return;
+    // Revient à l'écran Compte (propre, sans groupe).
+    Navigator.of(context).pop();
   }
 
   Future<void> _removeMember(GroupMember member) async {
