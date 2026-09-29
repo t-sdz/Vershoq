@@ -77,6 +77,32 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
 
+  Future<void> _leaveGroup(JoinedGroup jg) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Quitter « ${jg.group.name} » ?'),
+        content: const Text('Tu devras un code pour le rejoindre à nouveau.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Quitter',
+                  style: TextStyle(color: VTheme.coral))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    // Retire vraiment du groupe côté serveur, puis nettoie le local.
+    try {
+      await GroupService.removeMember(jg.group.id, jg.member.email);
+    } catch (_) {}
+    await GroupService.leaveGroup(jg.group.id);
+    _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -196,6 +222,13 @@ class _AccountScreenState extends State<AccountScreen> {
                   label: 'Gestion du compte',
                   onTap: () => _open(const AccountInfoScreen()),
                 ),
+                if (_groups.isNotEmpty)
+                  _tile(
+                    icon: Icons.exit_to_app_rounded,
+                    label: 'Quitter le groupe',
+                    color: VTheme.coral,
+                    onTap: () => _leaveGroup(_groups.first),
+                  ),
                 const SizedBox(height: 12),
                 _tile(
                   icon: Icons.logout_rounded,

@@ -297,6 +297,35 @@ class GroupService {
     }
   }
 
+  /// Supprime DÉFINITIVEMENT le groupe : ses photos, ses membres, puis le
+  /// document du groupe. Réservé aux admins côté UI. Nettoie ensuite le local.
+  static Future<void> deleteGroup(String groupId) async {
+    try {
+      // Sous-collections d'abord (Firestore ne supprime pas en cascade),
+      // par lots pour ne pas dépasser la limite d'une écriture batch.
+      for (final sub in const ['photos', 'members']) {
+        final snap = await _groups.doc(groupId).collection(sub).get();
+        var batch = _db.batch();
+        var n = 0;
+        for (final d in snap.docs) {
+          batch.delete(d.reference);
+          if (++n >= 400) {
+            await batch.commit();
+            batch = _db.batch();
+            n = 0;
+          }
+        }
+        if (n > 0) await batch.commit();
+      }
+      // Puis le document du groupe.
+      await _groups.doc(groupId).delete();
+    } on FirebaseException catch (e) {
+      throw GroupException('Erreur Firebase : ${e.message ?? e.code}');
+    }
+    // Retire le groupe du local (comme un départ).
+    await leaveGroup(groupId);
+  }
+
   /// Met à jour la config des notifications du groupe (réservé admin côté UI).
   static Future<void> updateNotifConfig(
       String groupId, Map<String, dynamic> config) async {

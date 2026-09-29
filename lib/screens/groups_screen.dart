@@ -502,8 +502,60 @@ class _GroupsScreenState extends State<GroupsScreen> {
           child: const Text('Quitter le groupe',
               style: TextStyle(color: Colors.redAccent)),
         ),
+        if (isAdmin)
+          TextButton.icon(
+            onPressed: _deleteGroup,
+            icon: const Icon(Icons.delete_forever_rounded,
+                color: Colors.redAccent, size: 20),
+            label: const Text('Supprimer le groupe',
+                style: TextStyle(
+                    color: Colors.redAccent, fontWeight: FontWeight.bold)),
+          ),
       ],
     );
+  }
+
+  Future<void> _deleteGroup() async {
+    final group = _current;
+    if (group == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF111111),
+        title: const Text('Supprimer le groupe',
+            style: TextStyle(color: Colors.white)),
+        content: Text(
+          'Supprimer définitivement « ${group.name} » ? Toutes les photos et '
+          'tous les membres seront supprimés pour TOUT LE MONDE. Cette action '
+          'est irréversible.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child:
+                const Text('Annuler', style: TextStyle(color: Colors.white38)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Supprimer',
+                style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await GroupService.deleteGroup(group.id);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      }
+      return;
+    }
+    if (!mounted) return;
+    Navigator.of(context).pop(); // retour à l'écran Compte
   }
 
   Widget? _memberTrailing(Group group, GroupMember m, bool viewerIsAdmin,
