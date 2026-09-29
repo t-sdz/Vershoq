@@ -454,6 +454,7 @@ class GroupService {
     await prefs.setString(_currentGroupKey, jsonEncode(target.group.toJson()));
     await prefs.setString(_currentUserKey, jsonEncode(target.member.toMap()));
     await prefs.remove(_memberNamesKey);
+    await NotificationService.clearMoments(); // pas de moment de l'ancien groupe
     await NotificationService.cancelAll();
     await NotificationService.scheduleRandom();
   }
@@ -544,6 +545,8 @@ class GroupService {
     // nouveau groupe actif (ou rien s'il n'y en a plus). Ne doit JAMAIS faire
     // échouer le départ du groupe (sinon l'écran ne se rafraîchit pas).
     try {
+      // Efface les moments de l'ancien groupe pour ne pas garder ses prénoms.
+      await NotificationService.clearMoments();
       await NotificationService.cancelAll();
       await NotificationService.scheduleRandom();
     } catch (_) {}

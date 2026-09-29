@@ -31,7 +31,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   List<GroupMember> _members = [];
   String? _activeMoment;
   bool _loading = true;
-  final Set<String> _subscribedTopics = {};
 
   @override
   void initState() {
@@ -70,13 +69,10 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     await GroupService.healMyMemberUsername();
     final user  = await GroupService.getCurrentUser();
     final joined = await GroupService.getJoinedGroups();
-    // Abonne l'appareil aux notifs push des NOUVEAUX groupes seulement
-    // (évite de re-souscrire à chaque chargement).
-    final newTopics = joined
-        .map((j) => j.group.id)
-        .where((id) => _subscribedTopics.add(id))
-        .toList();
-    if (newTopics.isNotEmpty) PushService.subscribeGroups(newTopics);
+    // Réconcilie les abonnements push : abonne au(x) groupe(s) actuel(s) et se
+    // désabonne des anciens (ex : un groupe quitté) → plus de notifs mélangées.
+    await PushService.reconcileSubscriptions(
+        joined.map((j) => j.group.id).toList());
     final activeMoment = await NotificationService.peekActiveMoment();
     List<GroupMember> members = [];
     if (group != null) {
