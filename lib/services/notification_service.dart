@@ -136,15 +136,6 @@ class NotificationService {
     await _plugin.cancelAll();
   }
 
-  /// Efface les moments photo en attente (bannière / caméra). À appeler quand
-  /// on quitte ou change de groupe, pour ne pas garder un moment de l'ancien.
-  static Future<void> clearMoments() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_momentsKey);
-    await prefs.remove(_consumedSetKey);
-    momentTick.value++;
-  }
-
   /// Durée pendant laquelle on peut encore prendre la photo après le début du
   /// moment. Sans compte à rebours (pas de pression), on laisse tout le temps
   /// (6 h). Avec compte à rebours, au moins 15 min pour ne pas rater le coche.
