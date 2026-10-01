@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:ui';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -143,6 +144,47 @@ class PushService {
     } catch (e) {
       debugPrint('PushService.initialTapAlert: $e');
       return null;
+    }
+  }
+
+  /// Relit la dernière alerte du groupe courant dans Firestore (champ
+  /// « lastAlert » écrit par le serveur) et l'arme localement si elle me
+  /// concerne. Filet de sécurité quand la notif n'a pas pu être traitée en
+  /// arrière-plan (Xiaomi qui bloque l'app, etc.) : ouvrir l'app suffit.
+  static Future<void> syncLastAlert() async {
+    if (kIsWeb) return;
+    try {
+      final group = await GroupService.getCurrentGroup();
+      if (group == null) return;
+      final email = (await GroupService.getCurrentUser())?.email ??
+          FirebaseAuth.instance.currentUser?.email ??
+          '';
+      if (email.trim().isEmpty) return;
+      final doc = await FirebaseFirestore.instance
+          .collection('groups')
+          .doc(group.id)
+          .get()
+          .timeout(const Duration(seconds: 8));
+      final last = doc.data()?['lastAlert'];
+      if (last is! Map) return;
+      final id = last['id']?.toString() ?? '';
+      final sentAt = last['sentAt'];
+      final cd = last['cd'];
+      final names = last['names'];
+      if (id.isEmpty || sentAt is! num || names is! Map) return;
+      final mine = names[memberTopicFor(email)]?.toString() ?? '';
+      if (mine.isEmpty) return; // alerte pas pour moi
+      final alert = AlertMoment(
+        id: id,
+        groupId: group.id,
+        names: mine,
+        sentAtMs: sentAt.toInt(),
+        countdownSeconds: cd is num && cd > 0 ? cd.toInt() : 0,
+      );
+      if (alert.isExpired()) return;
+      await NotificationService.upsertAlert(alert);
+    } catch (e) {
+      debugPrint('PushService.syncLastAlert: $e');
     }
   }
 

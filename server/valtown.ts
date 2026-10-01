@@ -275,6 +275,51 @@ function buildMemberMessage(
   };
 }
 
+// Mémorise l'alerte dans le document du groupe (champ « lastAlert ») :
+// l'app la relit à l'ouverture, même si la notif n'a pas pu être traitée en
+// arrière-plan (Xiaomi…). Clé des prénoms = sujet personnel du membre.
+async function recordLastAlert(
+  token: string,
+  project: string,
+  groupId: string,
+  alertId: string,
+  sentAtMs: number,
+  cd: number,
+  parts: Array<{ email: string; names: string }>,
+): Promise<void> {
+  const names: Record<string, unknown> = {};
+  for (const { email, names: n } of parts) {
+    names[await memberTopic(email)] = { stringValue: n };
+  }
+  const r = await fetch(
+    `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents/groups/${
+      encodeURIComponent(groupId)
+    }?updateMask.fieldPaths=lastAlert&currentDocument.exists=true`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fields: {
+          lastAlert: {
+            mapValue: {
+              fields: {
+                id: { stringValue: alertId },
+                sentAt: { integerValue: String(sentAtMs) },
+                cd: { integerValue: String(cd) },
+                names: { mapValue: { fields: names } },
+              },
+            },
+          },
+        },
+      }),
+    },
+  );
+  if (!r.ok) throw new Error(`lastAlert ${r.status}: ${await r.text()}`);
+}
+
 // Envoie l'alerte à chaque membre sur SON sujet, avec SES prénoms.
 // Renvoie le nombre de messages acceptés par FCM. Une erreur sur un membre
 // est journalisée mais n'empêche pas l'envoi aux autres.
@@ -289,6 +334,12 @@ async function sendAlert(
   const parts = computePartition(members, cfg, alertId);
   const cd = countdownOf(cfg);
   const sentAtMs = Date.now(); // même horodatage pour tous les membres
+  if (parts.length === 0) return 0;
+  try {
+    await recordLastAlert(token, project, groupId, alertId, sentAtMs, cd, parts);
+  } catch (e) {
+    console.error(`lastAlert en échec (${alertId}) :`, e);
+  }
   let ok = 0;
   for (const { email, names } of parts) {
     try {

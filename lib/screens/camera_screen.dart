@@ -8,6 +8,7 @@ import 'package:image/image.dart' as img;
 import 'package:permission_handler/permission_handler.dart';
 
 import '../services/notification_service.dart';
+import '../services/push_service.dart';
 import '../services/storage_service.dart';
 import '../theme/v_theme.dart';
 import 'result_screen.dart';
@@ -75,7 +76,12 @@ class _CameraScreenState extends State<CameraScreen>
       await _initCamera();
       return;
     }
-    final m = await NotificationService.momentById(id);
+    var m = await NotificationService.momentById(id);
+    if (m == null) {
+      // Alerte inconnue en local : on la relit sur le serveur.
+      await PushService.syncLastAlert();
+      m = await NotificationService.momentById(id);
+    }
     final consumed = await NotificationService.isConsumed(id);
     if (!mounted) return;
     if (m == null || consumed) {

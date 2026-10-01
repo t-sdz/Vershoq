@@ -99,6 +99,9 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     try {
       await PushService.reconcileSubscriptions();
     } catch (_) {}
+    // Récupère la dernière alerte du serveur si la notif n'a pas été
+    // traitée en arrière-plan (sinon « pas de photo à prendre »).
+    await PushService.syncLastAlert();
     final activeAlert = await NotificationService.peekActiveAlert();
     if (group != null) {
       try {

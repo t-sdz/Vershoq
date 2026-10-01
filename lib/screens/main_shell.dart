@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/notification_service.dart';
+import '../services/push_service.dart';
 import '../theme/v_theme.dart';
 import 'account_screen.dart';
 import 'camera_screen.dart';
@@ -38,12 +39,19 @@ class _MainShellState extends State<MainShell> {
   ];
 
   Future<void> _onCapture() async {
-    final alert = await NotificationService.peekActiveAlert();
+    var alert = await NotificationService.peekActiveAlert();
+    if (alert == null) {
+      // Rien en local : la notif n'a peut-être pas été traitée → on relit
+      // la dernière alerte du groupe sur le serveur.
+      await PushService.syncLastAlert();
+      alert = await NotificationService.peekActiveAlert();
+    }
     if (!mounted) return;
-    if (alert != null) {
+    final found = alert;
+    if (found != null) {
       if (CameraScreen.isOpen) return;
       await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => CameraScreen(alertId: alert.id)),
+        MaterialPageRoute(builder: (_) => CameraScreen(alertId: found.id)),
       );
       if (mounted) setState(() {});
       // La bannière du fil se met à jour (alerte consommée).
