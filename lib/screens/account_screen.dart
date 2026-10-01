@@ -8,17 +8,20 @@ import '../services/group_service.dart';
 import '../services/user_profile_service.dart';
 import '../theme/v_theme.dart';
 import 'account_info_screen.dart';
+import 'app_root.dart';
 import 'create_group_screen.dart';
 import 'gallery_screen.dart';
-import 'main_shell.dart';
 import 'join_group_screen.dart';
-import 'login_screen.dart';
 import 'settings_screen.dart';
 
 /// Page 2 — Compte : mes groupes, rejoindre/créer, paramètres, galerie
 /// perso globale, gestion du compte.
 class AccountScreen extends StatefulWidget {
-  const AccountScreen({super.key});
+  /// Appelé quand on ouvre son groupe depuis cet écran affiché DANS la
+  /// coquille (onglet Compte) : on bascule alors simplement sur le Fil.
+  final VoidCallback? onOpenGroup;
+
+  const AccountScreen({super.key, this.onOpenGroup});
 
   @override
   State<AccountScreen> createState() => _AccountScreenState();
@@ -54,12 +57,27 @@ class _AccountScreenState extends State<AccountScreen> {
   }
 
   Future<void> _openGroup(String groupId) async {
-    await GroupService.setActiveGroup(groupId);
-    if (mounted) {
-      Navigator.of(context)
-          .push(MaterialPageRoute(builder: (_) => const MainShell()))
-          .then((_) => _load());
+    // N'active le groupe que s'il change : re-taper son groupe ne doit pas
+    // effacer l'alerte en cours.
+    final current = await GroupService.getCurrentGroup();
+    if (current?.id != groupId) {
+      await GroupService.setActiveGroup(groupId);
     }
+    if (!mounted) return;
+    final onOpenGroup = widget.onOpenGroup;
+    if (onOpenGroup != null) {
+      onOpenGroup();
+    } else {
+      _goHome();
+    }
+  }
+
+  /// Retour à l'accueil (AppRoot choisit Fil / Mon compte / Connexion).
+  void _goHome() {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AppRoot()),
+      (_) => false,
+    );
   }
 
   Future<void> _open(Widget screen) async {
@@ -69,12 +87,8 @@ class _AccountScreenState extends State<AccountScreen> {
 
   Future<void> _signOut() async {
     await AuthService.signOut();
-    if (mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (_) => false,
-      );
-    }
+    // AppRoot affichera automatiquement l'écran de connexion.
+    if (mounted) _goHome();
   }
 
   Future<void> _leaveGroup(JoinedGroup jg) async {
@@ -100,7 +114,7 @@ class _AccountScreenState extends State<AccountScreen> {
       await GroupService.removeMember(jg.group.id, jg.member.email);
     } catch (_) {}
     await GroupService.leaveGroup(jg.group.id);
-    _load();
+    if (mounted) _goHome();
   }
 
   @override

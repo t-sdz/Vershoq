@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -32,9 +30,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   List<String> _extraNames = [];
   final TextEditingController _extraNameCtrl = TextEditingController();
 
-  // Countdown (local)
+  // Compte à rebours (réglage du groupe)
   bool _countdownEnabled = false;
-  int _countdownSeconds = 15;
+  int _countdownSeconds = 120;
 
   bool _notifsEnabled = true;
   bool _loading = true;
@@ -72,7 +70,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _extraNames = List<String>.from(group?.extraNames ?? const []);
         // Compte à rebours : réglage du groupe (fixé par l'admin), partagé.
         _countdownEnabled = group?.notifCountdownEnabled ?? false;
-        _countdownSeconds = group?.notifCountdownSeconds ?? 15;
+        // 2 min par défaut ; bornes du curseur : 15 s à 10 min.
+        _countdownSeconds =
+            (group?.notifCountdownSeconds ?? 120).clamp(15, 600);
         _loading = false;
       });
     }
@@ -95,7 +95,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveConfig({String? message}) async {
     if (_groupId == null) return;
     await GroupService.updateNotifConfig(_groupId!, _buildConfig());
-    await NotificationService.cancelAll();
+    // Pas de cancelAll : ça effacerait les notifs déjà affichées. On ne
+    // replanifie que les notifs locales à venir (désactivées avec le push).
     await NotificationService.scheduleRandom();
     if (mounted && message != null) {
       ScaffoldMessenger.of(context)
@@ -372,45 +373,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: Text('Notifie tous les membres en même temps',
                   style: TextStyle(color: VTheme.warmMuted, fontSize: 12)),
               onTap: () async {
-                // Push serveur (tout le groupe, simultané) si configuré,
-                // sinon notif locale sur cet appareil.
-                // Graine COMMUNE : tous les téléphones (dont l'expéditeur)
-                // forment le même appariement -> réciproque (Tess<->Max).
-                final seed = Random().nextInt(0x7fffffff);
+                // Le serveur calcule les prénoms de chacun et envoie une
+                // notif personnelle à chaque membre (expéditeur compris).
                 var sent = false;
                 if (_groupId != null) {
-                  sent = await PushService.sendGroupPush(
-                    groupId: _groupId!,
-                    seed: seed,
-                    title: "📸 Snap'It",
-                    body: "C'est le moment ! Prends vite ta photo.",
-                  );
-                }
-                if (sent) {
-                  // L'expéditeur fait partie du groupe : arme sa bannière ET
-                  // affiche une notif locale tout de suite (sans attendre le
-                  // renvoi FCM à soi-même, qui peut tarder au 1er abonnement).
-                  // Même id de notif (9998) que le renvoi FCM -> pas de doublon.
-                  // MÊME graine que les autres -> même appariement.
-                  final label =
-                      await NotificationService.buildMyMomentLabel(seed: seed) ??
-                          '';
-                  await NotificationService.registerRemoteMoment(label);
-                  await NotificationService.showRemote(
-                    "📸 Snap'It",
-                    label.trim().isEmpty
-                        ? "C'est le moment ! Prends ta photo."
-                        : "Prends vite ta photo avec $label !",
-                    label,
-                  );
-                } else {
-                  await NotificationService.sendImmediate();
+                  sent = await PushService.sendGroupPush(groupId: _groupId!);
                 }
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                       content: Text(sent
                           ? 'Notif envoyée à tout le groupe !'
-                          : 'Notif envoyée (sur cet appareil)')));
+                          : 'Échec de l\'envoi (serveur injoignable)')));
                 }
               },
             ),
@@ -674,20 +647,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               value: _countdownEnabled,
               activeColor: VTheme.orange,
-              onChanged: (v) => setState(() => _countdownEnabled = v),
+              // Enregistré tout de suite (comme « Notifications activées »)
+              // pour que l'admin n'oublie pas de valider.
+              onChanged: (v) async {
+                setState(() => _countdownEnabled = v);
+                await _saveConfig(
+                    message: v
+                        ? 'Compte à rebours activé'
+                        : 'Compte à rebours désactivé');
+              },
             ),
             if (_countdownEnabled)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: _SliderRow(
                   label: 'Durée',
-                  value: _countdownSeconds.toDouble().clamp(0, 600),
-                  min: 0,
+                  value: _countdownSeconds.toDouble().clamp(15, 600),
+                  min: 15,
                   max: 600,
-                  divisions: 40, // paliers de 15 s, de 0 à 10 min
+                  divisions: 39, // paliers de 15 s, de 15 s à 10 min
                   display: _fmtCountdown(_countdownSeconds),
                   onChanged: (v) {
-                    final snapped = (v / 15).round() * 15;
+                    final snapped = ((v / 15).round() * 15).clamp(15, 600);
                     setState(() => _countdownSeconds = snapped);
                   },
                 ),

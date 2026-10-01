@@ -1,5 +1,5 @@
-// Cron Snap'It — envoie les ALERTES AUTOMATIQUES du groupe de façon
-// SIMULTANÉE à tout le monde, via FCM (Firebase Cloud Messaging).
+// Cron Snap'It — envoie les ALERTES AUTOMATIQUES du groupe via FCM (Firebase
+// Cloud Messaging), UN message PAR MEMBRE avec SES prénoms dans le texte.
 //
 // ┌─ Installation sur Val Town ───────────────────────────────────────────────┐
 // │ 1. Val Town → « New » → crée un Cron val, colle TOUT ce fichier.           │
@@ -12,12 +12,17 @@
 //  - à chaque passage (~15 min), le cron lit tes groupes dans Firestore ;
 //  - pour chaque groupe, il calcule les horaires d'alerte du jour (aléatoires
 //    mais DÉTERMINISTES : mêmes horaires à chaque exécution) ;
-//  - il envoie UN push (sujet « group_<id> ») pour toute alerte devenue due
-//    depuis le dernier passage → tous les téléphones abonnés le reçoivent en
-//    même temps (l'alerte part au plus tard ~15 min après son horaire) ;
-//  - chaque téléphone calcule ensuite SES propres prénoms à partir de la
-//    graine envoyée (appariement réciproque). Le marqueur « sent » (Blob)
-//    évite tout doublon.
+//  - pour toute alerte devenue due depuis le dernier passage, il lit les
+//    membres du groupe, calcule LUI-MÊME la répartition (qui pose avec qui,
+//    réciproque) et envoie à chaque membre un push sur son sujet personnel
+//    « u_<sha256(email)> » contenant ses prénoms → visibles dès la toute
+//    première notification, même app fermée ;
+//  - le compte à rebours est celui défini par l'admin (strict, non borné) ;
+//  - le marqueur « sent » (Blob) évite tout doublon.
+//
+// NB : le code de répartition / sujet / message est DUPLIQUÉ dans valtown.ts
+// (les deux vals sont déployés séparément) : toute modif doit être faite aux
+// deux endroits ET rester identique au contrat de l'app.
 
 import { blob } from "https://esm.town/v/std/blob";
 
@@ -84,24 +89,6 @@ async function getAccessToken(sa: any, scope: string): Promise<string> {
   return j.access_token;
 }
 
-// ── PRNG déterministe + hash stable ───────────────────────────────────────────
-function mulberry32(seed: number) {
-  let a = seed >>> 0;
-  return function () {
-    a |= 0;
-    a = (a + 0x6D2B79F5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function stableHash(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0x7fffffff;
-  return h;
-}
-
 // ── Heure locale (Paris) ──────────────────────────────────────────────────────
 function nowLocal(): { dateStr: string; minutes: number } {
   const fmt = new Intl.DateTimeFormat("en-CA", {
@@ -140,38 +127,249 @@ function parseFields(fields: any): Record<string, any> {
   return out;
 }
 
-async function sendPush(
-  token: string,
-  project: string,
+// ── PRNG déterministe + hash stable ───────────────────────────────────────────
+function mulberry32(seed: number) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0;
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function stableHash(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0x7fffffff;
+  return h;
+}
+
+// ── Sujet FCM personnel d'un membre ───────────────────────────────────────────
+// « u_ » + 40 premiers caractères hexa du SHA-256 de l'email normalisé.
+// DOIT être identique au calcul fait dans l'app (abonnement au sujet).
+async function memberTopic(email: string): Promise<string> {
+  const data = new TextEncoder().encode(email.trim().toLowerCase());
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  const hex = Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return "u_" + hex.slice(0, 40);
+}
+
+// ── Répartition des membres pour une alerte (source de vérité unique) ────────
+type PoolEntry = { email: string; username: string };
+
+// Entier depuis la config (comme _cfgInt côté app : nombre sinon défaut).
+function cfgInt(v: unknown, fallback: number): number {
+  return typeof v === "number" && Number.isFinite(v) ? Math.trunc(v) : fallback;
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.min(Math.max(v, lo), hi);
+}
+
+// « A », « A et B », « A, B et C ».
+function joinNames(names: string[]): string {
+  if (names.length === 0) return "";
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(", ")} et ${names[names.length - 1]}`;
+}
+
+// Liste des participants : membres (email normalisé) + prénoms en plus de
+// l'admin, dédoublonnés contre les pseudos des membres.
+function buildPool(
+  members: Array<Record<string, any>>,
+  cfg: Record<string, any>,
+): PoolEntry[] {
+  const pool: PoolEntry[] = [];
+  for (const m of members) {
+    const email = String(m.email ?? "").trim().toLowerCase();
+    if (!email) continue;
+    pool.push({ email, username: String(m.username ?? "") });
+  }
+  const seen = new Set(pool.map((p) => p.username.trim().toLowerCase()));
+  const extras = Array.isArray(cfg.extraNames) ? cfg.extraNames : [];
+  for (const n of extras) {
+    const name = String(n ?? "").trim();
+    const key = name.toLowerCase();
+    if (!key || seen.has(key)) continue;
+    pool.push({ username: name, email: "extra:" + key });
+    seen.add(key);
+  }
+  return pool;
+}
+
+// Calcule, pour chaque VRAI membre, les prénoms avec qui il doit poser.
+// Déterministe (graine = alertId) et réciproque : si A voit B, B voit A.
+// Renvoie une liste {email, names} (les « extra: » n'ont pas de téléphone).
+function computePartition(
+  members: Array<Record<string, any>>,
+  cfg: Record<string, any>,
+  alertId: string,
+): Array<{ email: string; names: string }> {
+  const pool = buildPool(members, cfg);
+  if (pool.length < 2) return [];
+  pool.sort((a, b) => (a.email < b.email ? -1 : a.email > b.email ? 1 : 0));
+
+  const rng = mulberry32(stableHash(alertId));
+  const total = pool.length;
+  const minN = cfgInt(cfg.minNames, 1);
+  const maxN = cfgInt(cfg.maxNames, 3);
+  const loS = clamp(minN + 1, 2, total);
+  const hiS = clamp(maxN + 1, loS, total);
+  const cap = loS + Math.floor(rng() * (hiS - loS + 1));
+
+  // Mélange de Fisher–Yates avec le même générateur.
+  for (let i = pool.length - 1; i >= 1; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+
+  // Groupes d'au plus `cap`, aussi égaux que possible, jamais de personne seule.
+  let numGroups = Math.ceil(total / cap);
+  const maxGroups = Math.floor(total / 2);
+  if (maxGroups >= 1 && numGroups > maxGroups) numGroups = maxGroups;
+  if (numGroups < 1) numGroups = 1;
+  const base = Math.floor(total / numGroups);
+  const extra = total % numGroups; // les `extra` premiers groupes ont +1
+
+  const out: Array<{ email: string; names: string }> = [];
+  let acc = 0;
+  for (let g = 0; g < numGroups; g++) {
+    const size = base + (g < extra ? 1 : 0);
+    const slice = pool.slice(acc, acc + size);
+    acc += size;
+    for (const p of slice) {
+      if (p.email.startsWith("extra:")) continue;
+      const names = joinNames(
+        slice.filter((o) => o !== p).map((o) => o.username),
+      );
+      if (names) out.push({ email: p.email, names });
+    }
+  }
+  return out;
+}
+
+// ── Message FCM personnel ─────────────────────────────────────────────────────
+// Compte à rebours strict défini par l'admin (0 = pas de compte à rebours).
+function countdownOf(cfg: Record<string, any>): number {
+  if (cfg.countdownEnabled !== true) return 0;
+  // Pas de durée enregistrée : 2 min par défaut (comme l'app).
+  const raw = cfg.countdownSeconds;
+  const s = raw === undefined || raw === null ? 120 : Number(raw);
+  return s > 0 ? Math.floor(s) : 0;
+}
+
+function fmtDuration(s: number): string {
+  if (s < 60) return `${s} s`;
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return r === 0 ? `${m} min` : `${m} min ${r} s`;
+}
+
+function buildMemberMessage(
+  topic: string,
+  alertId: string,
   groupId: string,
-  seed: number,
+  names: string,
+  sentAtMs: number,
+  cd: number,
 ) {
-  const message = {
+  const body = cd > 0
+    ? `C'est parti ! Tu as ${fmtDuration(cd)} pour prendre ta photo avec ${names}.`
+    : `C'est le moment ! Prends ta photo avec ${names}.`;
+  return {
     message: {
-      topic: `group_${groupId}`,
-      notification: {
-        title: "📸 Snap'It",
-        body: "C'est le moment ! Prends ta photo avec le groupe.",
+      topic,
+      notification: { title: "📸 Snap'It", body },
+      data: {
+        type: "alert",
+        alertId,
+        groupId,
+        names,
+        sentAt: String(sentAtMs),
+        cd: String(cd),
       },
-      data: { seed: String(seed), groupId: String(groupId) },
       android: {
         priority: "HIGH",
-        notification: { channel_id: "vershoq_shots", sound: "default" },
+        ttl: cd > 0 ? `${cd + 120}s` : "21600s",
+        notification: {
+          channel_id: "vershoq_shots",
+          sound: "default",
+          tag: alertId,
+        },
       },
       apns: { payload: { aps: { sound: "default" } } },
     },
   };
-  await fetch(
-    `https://fcm.googleapis.com/v1/projects/${project}/messages:send`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(message),
-    },
+}
+
+// Envoie l'alerte à chaque membre sur SON sujet, avec SES prénoms.
+// Renvoie le nombre de messages acceptés par FCM. Une erreur sur un membre
+// est journalisée mais n'empêche pas l'envoi aux autres.
+async function sendAlert(
+  token: string,
+  project: string,
+  groupId: string,
+  alertId: string,
+  members: Array<Record<string, any>>,
+  cfg: Record<string, any>,
+): Promise<number> {
+  const parts = computePartition(members, cfg, alertId);
+  const cd = countdownOf(cfg);
+  const sentAtMs = Date.now(); // même horodatage pour tous les membres
+  let ok = 0;
+  for (const { email, names } of parts) {
+    try {
+      const msg = buildMemberMessage(
+        await memberTopic(email),
+        alertId,
+        groupId,
+        names,
+        sentAtMs,
+        cd,
+      );
+      const r = await fetch(
+        `https://fcm.googleapis.com/v1/projects/${project}/messages:send`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(msg),
+        },
+      );
+      if (r.ok) {
+        ok++;
+      } else {
+        console.error(
+          `FCM ${r.status} pour ${email} (${alertId}) : ${await r.text()}`,
+        );
+      }
+    } catch (e) {
+      console.error(`FCM erreur pour ${email} (${alertId}) :`, e);
+    }
+  }
+  return ok;
+}
+
+// ── Firestore REST : membres d'un groupe ──────────────────────────────────────
+async function fetchMembers(
+  token: string,
+  project: string,
+  groupId: string,
+): Promise<Array<Record<string, any>>> {
+  const r = await fetch(
+    `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents/groups/${
+      encodeURIComponent(groupId)
+    }/members?pageSize=300`,
+    { headers: { Authorization: `Bearer ${token}` } },
   );
+  if (!r.ok) throw new Error(`members ${r.status}: ${await r.text()}`);
+  const j = await r.json();
+  return (j.documents || []).map((d: any) => parseFields(d.fields));
 }
 
 export default async function () {
@@ -233,11 +431,15 @@ export default async function () {
       if (!(times[i] <= nowMin && times[i] > nowMin - 20)) continue;
       const key = `${dateStr}|${id}|${i}`;
       if (sent[key]) continue;
-      sent[key] = true;
-      const seed = stableHash(`${id}|${dateStr}|${i}`);
+      sent[key] = true; // marqué d'office : jamais de double envoi
+      const alertId = `${id}_${dateStr}_${i}`;
       try {
-        await sendPush(token, project, id!, seed);
-      } catch (_) { /* on réessaiera à la prochaine minute si non marqué */ }
+        const members = await fetchMembers(token, project, id!);
+        const n = await sendAlert(token, project, id!, alertId, members, cfg);
+        console.log(`Alerte ${alertId} : ${n} message(s) envoyé(s)`);
+      } catch (e) {
+        console.error(`Alerte ${alertId} en échec :`, e);
+      }
     }
   }
 

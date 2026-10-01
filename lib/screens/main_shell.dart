@@ -26,22 +26,28 @@ class _MainShellState extends State<MainShell> {
   late int _index = widget.initialIndex;
 
   // 4 écrans persistants ; « Capture » est une action, pas un onglet.
-  final List<Widget> _screens = const [
-    FeedScreen(),
+  late final List<Widget> _screens = [
+    const FeedScreen(),
     // Galerie = MES photos (celles où je suis identifié), tous groupes confondus.
-    GalleryScreen(personalOnly: true, allGroups: true),
-    GroupsScreen(),
-    AccountScreen(),
+    const GalleryScreen(personalOnly: true, allGroups: true),
+    const GroupsScreen(),
+    // Taper son groupe dans « Mon compte » ramène simplement sur le Fil.
+    AccountScreen(onOpenGroup: () {
+      if (mounted) setState(() => _index = 0);
+    }),
   ];
 
   Future<void> _onCapture() async {
-    final moment = await NotificationService.peekActiveMoment();
+    final alert = await NotificationService.peekActiveAlert();
     if (!mounted) return;
-    if (moment != null) {
+    if (alert != null) {
+      if (CameraScreen.isOpen) return;
       await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => CameraScreen(personName: moment)),
+        MaterialPageRoute(builder: (_) => CameraScreen(alertId: alert.id)),
       );
       if (mounted) setState(() {});
+      // La bannière du fil se met à jour (alerte consommée).
+      NotificationService.momentTick.value++;
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

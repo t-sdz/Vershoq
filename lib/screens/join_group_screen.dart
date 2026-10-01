@@ -4,7 +4,7 @@ import '../services/group_service.dart';
 import '../services/user_profile_service.dart';
 import '../theme/v_theme.dart';
 import '../widgets/form_widgets.dart';
-import 'feed_screen.dart';
+import 'app_root.dart';
 
 class JoinGroupScreen extends StatefulWidget {
   const JoinGroupScreen({super.key});
@@ -37,9 +37,10 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
         memberPhotoBase64: profile.photoBase64,
       );
       if (mounted) {
+        // Accueil = le fil du groupe, avec la barre de navigation.
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const FeedScreen()),
-          (route) => route.isFirst,
+          MaterialPageRoute(builder: (_) => const AppRoot()),
+          (_) => false,
         );
       }
     } on GroupException catch (e) {

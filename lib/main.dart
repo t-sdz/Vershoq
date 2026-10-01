@@ -1,21 +1,18 @@
-import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth, User;
+import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'firebase_options.dart';
-import 'screens/account_screen.dart';
+import 'screens/app_root.dart';
 import 'screens/camera_screen.dart';
-import 'screens/login_screen.dart';
-import 'screens/verify_email_screen.dart';
 import 'services/notification_service.dart';
 import 'services/push_service.dart';
 import 'services/theme_service.dart';
 import 'theme/v_theme.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,68 +36,64 @@ Future<void> main() async {
   // Charge le thème choisi par l'utilisateur (palette + polices).
   await ThemeService.load();
 
+  // Tap sur une notif locale (app ouverte ou en arrière-plan).
   await NotificationService.init(
     onTap: (payload) {
-      navigatorKey.currentState?.push(
-        MaterialPageRoute(
-          builder: (_) => CameraScreen(personName: payload),
-        ),
-      );
+      final alertId = NotificationService.alertIdFromPayload(payload);
+      if (alertId != null) {
+        openCameraForAlert(alertId);
+      } else {
+        // Ancien payload (prénoms) : caméra « libre ».
+        _pushCamera(CameraScreen(personName: payload));
+      }
     },
   );
 
   // Notifications push (FCM via serveur externe).
   // Tap sur une notif push quand l'app est en arrière-plan -> ouvre la caméra.
-  PushService.onOpen = (label) {
-    navigatorKey.currentState?.push(
-      MaterialPageRoute(
-        builder: (_) => CameraScreen(personName: label),
-      ),
-    );
-  };
+  PushService.onOpenAlert = openCameraForAlert;
   await PushService.init();
 
   // Schedule random notifications on first launch
   await NotificationService.scheduleRandom();
 
-  // Faut-il ouvrir directement la caméra au lancement ?
-  //  - notif locale tapée, OU
-  //  - notif push tapée (app tuée), MÊME si les prénoms sont vides, OU
-  //  - un moment photo est encore actif (ouverture juste après une alerte).
-  String? initial;
-  var openCamera = false;
-
+  // Faut-il ouvrir la caméra au lancement ? Uniquement si l'app a été lancée
+  // en TAPANT une notif (locale ou push). Aucun accès réseau ici : l'alerte
+  // est armée à partir des données du push.
+  String? pendingAlertId;
   final localPayload = await NotificationService.getLaunchPayload();
   if (localPayload != null) {
-    initial = localPayload;
-    openCamera = true;
+    pendingAlertId = NotificationService.alertIdFromPayload(localPayload);
   }
-  if (!openCamera) {
-    // Renvoie null si la notif n'a PAS été tapée ; sinon le label (parfois vide).
-    final tapped = await PushService.initialTapLabel();
-    if (tapped != null) {
-      initial = tapped;
-      openCamera = true;
-    }
-  }
-  if (!openCamera &&
-      FirebaseAuth.instance.currentUser?.emailVerified == true) {
-    final moment = await NotificationService.activeMomentLabel();
-    if (moment != null) {
-      initial = moment;
-      openCamera = true;
-    }
-  }
+  pendingAlertId ??= await PushService.initialTapAlert();
 
-  runApp(VershoqApp(initialPersonName: initial, openCamera: openCamera));
+  runApp(const VershoqApp());
+
+  // La caméra s'ouvre PAR-DESSUS l'accueil (jamais comme écran racine) : le
+  // retour ramène toujours au fil / au compte.
+  if (pendingAlertId != null) {
+    final id = pendingAlertId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (FirebaseAuth.instance.currentUser != null) openCameraForAlert(id);
+    });
+  }
+}
+
+/// Ouvre la caméra pour une alerte, par-dessus l'écran courant (sauf si une
+/// caméra est déjà ouverte).
+void openCameraForAlert(String alertId) {
+  _pushCamera(CameraScreen(alertId: alertId));
+}
+
+void _pushCamera(CameraScreen screen) {
+  if (CameraScreen.isOpen) return;
+  navigatorKey.currentState?.push(
+    MaterialPageRoute(builder: (_) => screen),
+  );
 }
 
 class VershoqApp extends StatelessWidget {
-  final String? initialPersonName;
-  final bool openCamera;
-
-  const VershoqApp(
-      {super.key, this.initialPersonName, this.openCamera = false});
+  const VershoqApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -112,27 +105,7 @@ class VershoqApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         navigatorKey: navigatorKey,
         theme: _buildTheme(),
-        home: openCamera
-            ? CameraScreen(personName: initialPersonName ?? '')
-            : StreamBuilder<User?>(
-                stream: FirebaseAuth.instance.authStateChanges(),
-                builder: (context, snap) {
-                  if (snap.connectionState == ConnectionState.waiting) {
-                    return Scaffold(
-                      backgroundColor: VTheme.bgWarm,
-                      body: Center(
-                          child: CircularProgressIndicator(color: VTheme.orange)),
-                    );
-                  }
-                  final user = snap.data;
-                  if (user == null) return const LoginScreen();
-                  // Vérifie l'email en rafraîchissant le statut APRÈS la
-                  // restauration de session (sinon l'ancien statut « non
-                  // vérifié » en cache renverrait sur l'écran de vérification à
-                  // chaque ouverture).
-                  return _AuthGate(user: user);
-                },
-              ),
+        home: const AppRoot(),
       ),
     );
   }
@@ -227,55 +200,5 @@ class VershoqApp extends StatelessWidget {
       ),
       cardColor: VTheme.surface,
     );
-  }
-}
-
-/// Décide, après restauration de session, si on affiche le compte ou l'écran
-/// de vérification d'email. Rafraîchit le statut d'abord pour ne pas rester
-/// bloqué sur « email non vérifié » alors qu'il l'a été.
-class _AuthGate extends StatefulWidget {
-  final User user;
-  const _AuthGate({required this.user});
-
-  @override
-  State<_AuthGate> createState() => _AuthGateState();
-}
-
-class _AuthGateState extends State<_AuthGate> {
-  bool _checking = true;
-  bool _verified = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _check();
-  }
-
-  Future<void> _check() async {
-    var verified = widget.user.emailVerified;
-    if (!verified) {
-      try {
-        await widget.user.reload();
-        verified =
-            FirebaseAuth.instance.currentUser?.emailVerified ?? verified;
-      } catch (_) {}
-    }
-    if (mounted) {
-      setState(() {
-        _verified = verified;
-        _checking = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_checking) {
-      return Scaffold(
-        backgroundColor: VTheme.bgWarm,
-        body: Center(child: CircularProgressIndicator(color: VTheme.orange)),
-      );
-    }
-    return _verified ? const AccountScreen() : const VerifyEmailScreen();
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -28,9 +29,10 @@ class FeedScreen extends StatefulWidget {
 class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   Group? _group;
   GroupMember? _user;
-  List<GroupMember> _members = [];
-  String? _activeMoment;
+  AlertMoment? _activeAlert;
   bool _loading = true;
+  // Rafraîchit le temps restant affiché dans la bannière.
+  Timer? _bannerTimer;
 
   @override
   void initState() {
@@ -44,6 +46,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     NotificationService.momentTick.removeListener(_onMomentTick);
+    _bannerTimer?.cancel();
     super.dispose();
   }
 
@@ -52,8 +55,31 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   void _onMomentTick() => _refreshBanner();
 
   Future<void> _refreshBanner() async {
-    final m = await NotificationService.peekActiveMoment();
-    if (mounted) setState(() => _activeMoment = m);
+    final a = await NotificationService.peekActiveAlert();
+    if (mounted) _setActiveAlert(a);
+  }
+
+  /// Met à jour la bannière et (re)lance son minuteur si l'alerte a un
+  /// compte à rebours (affichage du temps restant, disparition à 0).
+  void _setActiveAlert(AlertMoment? a) {
+    setState(() => _activeAlert = a);
+    _bannerTimer?.cancel();
+    _bannerTimer = null;
+    if (a == null) return;
+    // Sans compte à rebours : un contrôle par minute suffit (expiration 6 h).
+    final period = a.hasCountdown
+        ? const Duration(milliseconds: 500)
+        : const Duration(minutes: 1);
+    _bannerTimer = Timer.periodic(period, (_) {
+      if (!mounted) return;
+      if (a.isExpired()) {
+        _bannerTimer?.cancel();
+        _bannerTimer = null;
+        setState(() => _activeAlert = null);
+      } else if (a.hasCountdown) {
+        setState(() {});
+      }
+    });
   }
 
   @override
@@ -68,16 +94,15 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     // Auto-répare ma fiche membre si mon pseudo a changé (remplace l'ancien).
     await GroupService.healMyMemberUsername();
     final user  = await GroupService.getCurrentUser();
-    final joined = await GroupService.getJoinedGroups();
-    // Réconcilie les abonnements push : abonne au(x) groupe(s) actuel(s) et se
-    // désabonne des anciens (ex : un groupe quitté) → plus de notifs mélangées.
-    await PushService.reconcileSubscriptions(
-        joined.map((j) => j.group.id).toList());
-    final activeMoment = await NotificationService.peekActiveMoment();
-    List<GroupMember> members = [];
+    // Réconcilie les abonnements push : un seul topic, le topic personnel de
+    // l'utilisateur (le serveur y envoie ses alertes avec SES prénoms).
+    try {
+      await PushService.reconcileSubscriptions();
+    } catch (_) {}
+    final activeAlert = await NotificationService.peekActiveAlert();
     if (group != null) {
       try {
-        members = await GroupService.getMembers(group.id);
+        final members = await GroupService.getMembers(group.id);
         await GroupService.cacheMemberNames(members.map((m) => m.username).toList());
         await NotificationService.scheduleRandom();
       } catch (_) {}
@@ -86,10 +111,9 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       setState(() {
         _group   = group;
         _user    = user;
-        _members = members;
-        _activeMoment = activeMoment;
         _loading = false;
       });
+      _setActiveAlert(activeAlert);
     }
   }
 
@@ -108,14 +132,14 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                     ? _GroupFeed(
                         groupId: _group!.id, userEmail: _user?.email ?? '')
                     : _LocalFeed(onReload: _load),
-            if (!_loading && _activeMoment != null)
+            if (!_loading && _activeAlert != null)
               Positioned(
                 top: MediaQuery.of(context).padding.top + 60,
                 left: 16,
                 right: 16,
                 child: _MomentBanner(
-                  names: _activeMoment!,
-                  onTap: () => _openCamera(_activeMoment!),
+                  alert: _activeAlert!,
+                  onTap: () => _openCamera(_activeAlert!.id),
                 ),
               ),
           ],
@@ -124,9 +148,10 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _openCamera(String names) async {
+  Future<void> _openCamera(String alertId) async {
+    if (CameraScreen.isOpen) return;
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => CameraScreen(personName: names)),
+      MaterialPageRoute(builder: (_) => CameraScreen(alertId: alertId)),
     );
     _load();
   }
@@ -620,12 +645,20 @@ class _BottomGradient extends StatelessWidget {
 }
 
 class _MomentBanner extends StatelessWidget {
-  final String names;
+  final AlertMoment alert;
   final VoidCallback onTap;
-  const _MomentBanner({required this.names, required this.onTap});
+  const _MomentBanner({required this.alert, required this.onTap});
+
+  /// « 45 s » sous la minute, sinon « m:ss ».
+  static String _fmt(Duration d) {
+    final secs = (d.inMilliseconds / 1000).ceil();
+    if (secs < 60) return '$secs s';
+    return '${secs ~/ 60}:${(secs % 60).toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final names = alert.names;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -643,7 +676,10 @@ class _MomentBanner extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('C\'est le moment !',
+                  Text(
+                      alert.hasCountdown
+                          ? 'C\'est le moment ! ⏱ ${_fmt(alert.remaining())}'
+                          : 'C\'est le moment !',
                       style: VTheme.grotesk(
                           color: Colors.white,
                           fontSize: 16,
@@ -692,40 +728,6 @@ class _ActionBtn extends StatelessWidget {
         ),
         child: Icon(icon, color: color, size: 22),
       ),
-    );
-  }
-}
-
-class _DrawerTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final Color? color;
-
-  const _DrawerTile({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final c = color ?? VTheme.warmDark;
-    return ListTile(
-      leading: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: c.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(icon, color: c, size: 20),
-      ),
-      title: Text(label,
-          style: TextStyle(
-              color: c, fontWeight: FontWeight.w600, fontSize: 15)),
-      onTap: onTap,
     );
   }
 }

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../models/photo_entry.dart';
 import '../services/names_service.dart';
-import '../services/notification_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/photo_card.dart';
 import 'camera_screen.dart';
@@ -57,9 +56,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final names = await NamesService.getNames();
     if (names.isEmpty) return;
     final name = names[Random().nextInt(names.length)];
-
-    // Show notification (fires immediately) and navigate
-    await NotificationService.sendTestNotification(name);
 
     if (mounted) {
       await Navigator.of(context).push(

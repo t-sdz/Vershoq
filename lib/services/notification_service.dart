@@ -11,48 +11,126 @@ import 'package:timezone/timezone.dart' as tz;
 import '../config.dart';
 import '../models/group.dart';
 import 'group_service.dart';
-import 'names_service.dart';
 
 // Must be top-level for the background isolate
 @pragma('vm:entry-point')
 void onBackgroundNotificationResponse(NotificationResponse response) {}
 
+/// Une alerte photo (« moment »), reçue par push ou planifiée localement.
+/// Tout est relatif à [sentAtMs] (heure d'envoi par le serveur) → même
+/// deadline pour tout le groupe, quel que soit le moment où on ouvre l'app.
+class AlertMoment {
+  /// Identifiant unique de l'alerte (alertId du serveur). Une photo par id.
+  final String id;
+  final String groupId;
+
+  /// Prénoms à photographier pour CET utilisateur (« A, B et C »).
+  final String names;
+
+  /// Heure d'envoi (ms depuis epoch).
+  final int sentAtMs;
+
+  /// Durée du compte à rebours en secondes (0 = pas de compte à rebours).
+  final int countdownSeconds;
+
+  /// Sans compte à rebours, une alerte reste valable 6 h.
+  static const noCountdownValidityMs = 6 * 60 * 60 * 1000;
+
+  const AlertMoment({
+    required this.id,
+    required this.groupId,
+    required this.names,
+    required this.sentAtMs,
+    this.countdownSeconds = 0,
+  });
+
+  bool get hasCountdown => countdownSeconds > 0;
+
+  int get deadlineMs => hasCountdown
+      ? sentAtMs + countdownSeconds * 1000
+      : sentAtMs + noCountdownValidityMs;
+
+  /// Temps restant (horloge murale, donc pas de dérive), jamais négatif.
+  Duration remaining([int? nowMs]) {
+    final now = nowMs ?? DateTime.now().millisecondsSinceEpoch;
+    final ms = deadlineMs - now;
+    return Duration(milliseconds: ms > 0 ? ms : 0);
+  }
+
+  bool isExpired([int? nowMs]) =>
+      (nowMs ?? DateTime.now().millisecondsSinceEpoch) >= deadlineMs;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'g': groupId,
+        'l': names,
+        't': sentAtMs,
+        'cd': countdownSeconds,
+      };
+
+  /// Renvoie null si l'entrée est invalide (ex : ancien format sans id).
+  static AlertMoment? fromJson(dynamic e) {
+    if (e is! Map) return null;
+    final id = e['id'];
+    final t = e['t'];
+    if (id is! String || id.isEmpty || t is! num) return null;
+    final cd = e['cd'];
+    return AlertMoment(
+      id: id,
+      groupId: e['g']?.toString() ?? '',
+      names: e['l']?.toString() ?? '',
+      sentAtMs: t.toInt(),
+      countdownSeconds: cd is num ? cd.toInt() : 0,
+    );
+  }
+}
+
 class NotificationService {
   static final _plugin = FlutterLocalNotificationsPlugin();
-  static void Function(String personName)? _onTap;
+  static void Function(String payload)? _onTap;
 
-  /// Incrémenté chaque fois qu'un moment est armé (push reçu app ouverte, ou
-  /// envoi admin). Le feed l'écoute pour afficher la bannière immédiatement.
+  /// Incrémenté chaque fois qu'un moment est armé ou consommé (push reçu app
+  /// ouverte, photo prise…). Le feed l'écoute pour mettre à jour la bannière.
   static final ValueNotifier<int> momentTick = ValueNotifier<int>(0);
 
   static const _channelId = 'vershoq_shots';
   static const _channelName = 'Photos spontanées';
   static const _captureActionId = 'vershoq_capture';
   static const _iosCategoryId = 'vershoq_shot_category';
-  static const _momentsKey = 'vershoq_moments';
-  static const _consumedSetKey = 'vershoq_moments_consumed_set';
 
-  /// Ensemble des moments déjà consommés (photo prise), par timestamp. On
-  /// utilise un ENSEMBLE (pas un seul) pour gérer plusieurs alertes actives en
-  /// même temps sans que l'une réapparaisse après avoir photographié l'autre.
-  static Future<Set<int>> _getConsumed(SharedPreferences prefs) async {
-    final raw = prefs.getStringList(_consumedSetKey);
-    if (raw == null) return <int>{};
-    return raw.map((s) => int.tryParse(s) ?? 0).toSet();
+  /// Liste des alertes (nouveau format, liée à un alertId).
+  static const _alertsKey = 'vershoq_alerts';
+
+  /// Ensemble des alertId déjà consommés (photo prise).
+  static const _consumedAlertsKey = 'vershoq_alerts_consumed';
+
+  // Anciennes clés (format sans alertId) : effacées au nettoyage.
+  static const _legacyMomentsKey = 'vershoq_moments';
+  static const _legacyConsumedSetKey = 'vershoq_moments_consumed_set';
+
+  /// On garde les alertes 24 h (une alerte sans chrono dure 6 h max).
+  static const _pruneAfterMs = 24 * 60 * 60 * 1000;
+
+  /// Tolérance de décalage d'horloge entre le serveur et le téléphone.
+  static const _clockSkewMs = 2 * 60 * 1000;
+
+  static const _payloadPrefix = 'alert:';
+
+  /// Payload d'une notif liée à une alerte.
+  static String payloadFor(String alertId) => '$_payloadPrefix$alertId';
+
+  /// Extrait l'alertId d'un payload `alert:<id>`, sinon null.
+  static String? alertIdFromPayload(String? payload) {
+    if (payload == null || !payload.startsWith(_payloadPrefix)) return null;
+    final id = payload.substring(_payloadPrefix.length);
+    return id.isEmpty ? null : id;
   }
 
-  static Future<void> _addConsumed(SharedPreferences prefs, int t) async {
-    final set = await _getConsumed(prefs);
-    set.add(t);
-    // Garde seulement les 50 plus récents pour ne pas grossir indéfiniment.
-    final list = set.toList()..sort();
-    final trimmed = list.length > 50 ? list.sublist(list.length - 50) : list;
-    await prefs.setStringList(
-        _consumedSetKey, trimmed.map((e) => e.toString()).toList());
-  }
+  /// Id de notification stable (entier positif) dérivé de l'alertId.
+  static int notifIdFor(String alertId) => alertId.hashCode & 0x7fffffff;
 
   static Future<void> init({
-    required void Function(String personName) onTap,
+    required void Function(String payload) onTap,
   }) async {
     // Pas de notifications locales sur navigateur : on ignore tout pour ne
     // pas faire planter l'app au démarrage sur le web.
@@ -93,8 +171,8 @@ class NotificationService {
         iOS: iosSettings,
       ),
       onDidReceiveNotificationResponse: (response) {
-        // Toutes nos notifs sont des « moments photo » : taper ouvre la caméra,
-        // MÊME si le label (prénoms) est vide, sinon rien ne se passe.
+        // « alert:<id> » → caméra pour cette alerte ; ancien payload (prénoms)
+        // → caméra « libre » (comportement historique).
         _onTap?.call(response.payload ?? '');
       },
       onDidReceiveBackgroundNotificationResponse:
@@ -124,8 +202,8 @@ class NotificationService {
     if (kIsWeb) return null;
     final details = await _plugin.getNotificationAppLaunchDetails();
     if (details?.didNotificationLaunchApp == true) {
-      // Lancée en tapant une notif : on renvoie le label (éventuellement vide,
-      // mais jamais null) pour que la caméra s'ouvre quand même.
+      // Lancée en tapant une notif : on renvoie le payload (éventuellement
+      // vide, mais jamais null).
       return details?.notificationResponse?.payload ?? '';
     }
     return null;
@@ -136,24 +214,188 @@ class NotificationService {
     await _plugin.cancelAll();
   }
 
-  /// Durée pendant laquelle on peut encore prendre la photo après le début du
-  /// moment. Sans compte à rebours (pas de pression), on laisse tout le temps
-  /// (6 h). Avec compte à rebours, au moins 15 min pour ne pas rater le coche.
   // Compte à rebours : réglage du GROUPE (fixé par l'admin, partagé par tous),
-  // et non plus un réglage local par téléphone.
+  // et non plus un réglage local par téléphone. Sert à la planification locale.
   static Future<bool> _cdEnabled() async =>
       (await GroupService.getCurrentGroup())?.notifCountdownEnabled ?? false;
-  static Future<int> _cdSeconds() async =>
-      (await GroupService.getCurrentGroup())?.notifCountdownSeconds ?? 15;
 
-  static Future<int> _momentWindowMs() async {
-    final enabled = await _cdEnabled();
-    final c = await _cdSeconds();
-    if (enabled && c > 0) {
-      return max(c * 1000, 15 * 60 * 1000);
+  // ---------------------------------------------------------------------------
+  // Alertes (moments) stockées localement
+  // ---------------------------------------------------------------------------
+
+  static List<AlertMoment> _readAlerts(SharedPreferences prefs) {
+    final raw = prefs.getString(_alertsKey);
+    if (raw == null) return [];
+    try {
+      final list = <AlertMoment>[];
+      for (final e in jsonDecode(raw) as List) {
+        final m = AlertMoment.fromJson(e);
+        if (m != null) list.add(m);
+      }
+      return list;
+    } catch (_) {
+      return [];
     }
-    return 6 * 60 * 60 * 1000;
   }
+
+  static Future<void> _writeAlerts(
+      SharedPreferences prefs, List<AlertMoment> list) async {
+    await prefs.setString(
+        _alertsKey, jsonEncode(list.map((m) => m.toJson()).toList()));
+  }
+
+  static List<String> _readConsumed(SharedPreferences prefs) =>
+      prefs.getStringList(_consumedAlertsKey) ?? const <String>[];
+
+  /// Enregistre une alerte (dédoublonnée par id : si elle existe déjà, on
+  /// garde l'entrée existante). Purge les alertes de plus de 24 h. Renvoie
+  /// l'alerte stockée. Utilisable depuis l'isolat d'arrière-plan.
+  static Future<AlertMoment> upsertAlert(AlertMoment m) async {
+    final prefs = await SharedPreferences.getInstance();
+    // Relit le disque : l'autre isolat (premier plan / arrière-plan) a pu
+    // écrire entre-temps.
+    await prefs.reload();
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final list = _readAlerts(prefs)
+        .where((e) => e.sentAtMs >= nowMs - _pruneAfterMs)
+        .toList();
+    final existing = list.where((e) => e.id == m.id);
+    final AlertMoment stored;
+    if (existing.isNotEmpty) {
+      stored = existing.first;
+    } else {
+      stored = m;
+      list.add(m);
+    }
+    await _writeAlerts(prefs, list);
+    // Réveille le feed s'il est ouvert (sans effet dans l'isolat d'arrière-plan).
+    momentTick.value++;
+    return stored;
+  }
+
+  /// Alerte par id (null si inconnue).
+  static Future<AlertMoment?> momentById(String id) async {
+    if (kIsWeb) return null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    for (final m in _readAlerts(prefs)) {
+      if (m.id == id) return m;
+    }
+    return null;
+  }
+
+  /// Vrai si une photo a déjà été prise pour cette alerte.
+  static Future<bool> isConsumed(String id) async {
+    if (kIsWeb) return false;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    return _readConsumed(prefs).contains(id);
+  }
+
+  /// Alerte en cours la plus récente : non consommée, non expirée, et du
+  /// groupe ACTUEL. Ne consomme rien (bannière, bouton Capture).
+  static Future<AlertMoment?> peekActiveAlert() async {
+    if (kIsWeb) return null;
+    final prefs = await SharedPreferences.getInstance();
+    // Relit le disque : l'alerte a pu être écrite par l'isolat d'arrière-plan
+    // (push reçu app fermée) que l'app principale ne voit pas sinon.
+    await prefs.reload();
+    final group = await GroupService.getCurrentGroup();
+    if (group == null) return null;
+    final consumed = _readConsumed(prefs).toSet();
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    AlertMoment? best;
+    for (final m in _readAlerts(prefs)) {
+      if (m.groupId != group.id) continue;
+      if (consumed.contains(m.id)) continue;
+      if (m.sentAtMs > nowMs + _clockSkewMs) continue; // pas encore commencé
+      if (m.isExpired(nowMs)) continue;
+      if (best == null || m.sentAtMs > best.sentAtMs) best = m;
+    }
+    return best;
+  }
+
+  /// Marque l'alerte comme consommée (photo prise ou tentée) : la bannière
+  /// disparaît et on ne peut pas reprendre de photo pour cette alerte.
+  static Future<void> consumeAlert(String id) async {
+    if (kIsWeb) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final list = [..._readConsumed(prefs)];
+    if (!list.contains(id)) list.add(id);
+    // Garde seulement les 100 plus récents pour ne pas grossir indéfiniment.
+    final trimmed = list.length > 100 ? list.sublist(list.length - 100) : list;
+    await prefs.setStringList(_consumedAlertsKey, trimmed);
+    // Retire la notif de la barre (affichée par nous ou par Android/FCM, qui
+    // utilise le tag = alertId).
+    try {
+      await _plugin.cancel(notifIdFor(id), tag: id);
+      await _plugin.cancel(0, tag: id);
+    } catch (_) {}
+    momentTick.value++;
+  }
+
+  /// Efface toutes les alertes locales + l'ensemble « consommés ». À appeler
+  /// au changement / départ de groupe pour ne pas garder les alertes de
+  /// l'ancien groupe.
+  static Future<void> clearMoments() async {
+    if (kIsWeb) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    await prefs.remove(_alertsKey);
+    await prefs.remove(_consumedAlertsKey);
+    await prefs.remove(_legacyMomentsKey);
+    await prefs.remove(_legacyConsumedSetKey);
+    momentTick.value++;
+  }
+
+  /// Texte par défaut d'une alerte (même formulation que le serveur).
+  static String defaultAlertBody(AlertMoment m) {
+    final avec = m.names.trim().isEmpty ? '' : ' avec ${m.names}';
+    return m.hasCountdown
+        ? "C'est parti ! Tu as ${_fmtDuration(m.countdownSeconds)} pour prendre ta photo$avec."
+        : "C'est le moment ! Prends ta photo$avec.";
+  }
+
+  /// Affiche la notif d'une alerte (push reçu app OUVERTE ; app fermée,
+  /// c'est Android qui l'affiche à partir du bloc notification du push).
+  static Future<void> showAlertNotification(
+    AlertMoment m, {
+    String? title,
+    String? body,
+  }) async {
+    if (kIsWeb) return;
+    final countdown = m.hasCountdown;
+    final remainingMs = m.deadlineMs - DateTime.now().millisecondsSinceEpoch;
+    await _plugin.show(
+      notifIdFor(m.id),
+      title ?? "📸 Snap'It",
+      body ?? defaultAlertBody(m),
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channelId,
+          _channelName,
+          importance: Importance.max,
+          priority: Priority.high,
+          category: AndroidNotificationCategory.reminder,
+          tag: m.id,
+          // Chrono natif qui décompte jusqu'à la deadline commune.
+          usesChronometer: countdown,
+          chronometerCountDown: countdown,
+          when: countdown ? m.deadlineMs : null,
+          showWhen: countdown,
+          timeoutAfter: countdown && remainingMs > 0 ? remainingMs : null,
+          autoCancel: true,
+        ),
+        iOS: const DarwinNotificationDetails(),
+      ),
+      payload: payloadFor(m.id),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Planification locale (désactivée quand le serveur push est configuré)
+  // ---------------------------------------------------------------------------
 
   /// Répartit [total] personnes en groupes d'AU PLUS [cap] (aussi égaux que
   /// possible, jamais de groupe géant ni de personne seule) et renvoie
@@ -218,6 +460,7 @@ class NotificationService {
     // groupe) ; 2 min par défaut si la valeur est à 0.
     final countdownSeconds = group.notifCountdownSeconds;
     final durationSeconds = countdownSeconds > 0 ? countdownSeconds : 120;
+    final countdownOn = group.notifCountdownEnabled;
 
     final now = DateTime.now();
     final selfUser = await GroupService.getCurrentUser();
@@ -270,9 +513,9 @@ class NotificationService {
     if (members.length < 2) return; // il faut au moins 2 personnes
 
     int id = 0;
-    // Moments enregistrés localement : permettent, si on ouvre l'app sans
+    // Alertes enregistrées localement : permettent, si on ouvre l'app sans
     // toucher la notif, de savoir qu'un moment photo est en cours.
-    final moments = <Map<String, dynamic>>[];
+    final moments = <AlertMoment>[];
 
     for (int day = 0; day < 7; day++) {
       final base = now.add(Duration(days: day));
@@ -324,272 +567,20 @@ class NotificationService {
             .toList();
         if (targets.isEmpty) continue;
         final label = _joinNames(targets);
-        moments.add({
-          't': scheduled.millisecondsSinceEpoch,
-          'd': durationSeconds,
-          'l': label,
-        });
-        await _schedule(id++, scheduled, label, durationSeconds);
+        final moment = AlertMoment(
+          id: 'local_${group.id}_${scheduled.millisecondsSinceEpoch}',
+          groupId: group.id,
+          names: label,
+          sentAtMs: scheduled.millisecondsSinceEpoch,
+          countdownSeconds: countdownOn ? durationSeconds : 0,
+        );
+        moments.add(moment);
+        await _schedule(id++, moment);
       }
     }
 
-    await prefs.setString(_momentsKey, jsonEncode(moments));
+    await _writeAlerts(prefs, moments);
     debugPrint('NotificationService: scheduled $id notifications');
-  }
-
-  /// Renvoie le libellé du moment photo actuellement en cours (fenêtre du
-  /// compte à rebours non expirée) s'il n'a pas déjà été consommé, sinon null.
-  /// Sert à ouvrir directement la caméra quand on lance l'app.
-  static Future<String?> activeMomentLabel() async {
-    if (kIsWeb) return null;
-    final prefs = await SharedPreferences.getInstance();
-    // Relit le disque : le moment a pu être écrit par l'isolat d'arrière-plan
-    // (push reçu app fermée) que l'app principale ne voit pas sinon.
-    await prefs.reload();
-    final raw = prefs.getString(_momentsKey);
-    if (raw == null) return null;
-    final nowMs = DateTime.now().millisecondsSinceEpoch;
-    final consumed = await _getConsumed(prefs);
-    // Ouverture AUTOMATIQUE de la caméra au lancement : fenêtre COURTE (3 min),
-    // pour ne se déclencher que si on ouvre l'app juste après un moment. Le
-    // bandeau (peekActiveMoment), lui, reste disponible bien plus longtemps.
-    const windowMs = 3 * 60 * 1000;
-    try {
-      // On prend le moment le plus récent encore actif.
-      var bestT = 0;
-      String? bestLabel;
-      for (final e in jsonDecode(raw) as List) {
-        final t = (e['t'] as num).toInt();
-        if (nowMs >= t &&
-            nowMs <= t + windowMs &&
-            !consumed.contains(t) &&
-            t > bestT) {
-          bestT = t;
-          bestLabel = e['l'] as String;
-        }
-      }
-      if (bestLabel != null) {
-        await _addConsumed(prefs, bestT);
-        return bestLabel;
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  /// Calcule, pour CET appareil, les personnes à photographier (les autres
-  /// membres de MON groupe, jamais moi). Basé sur le cache local (fonctionne
-  /// aussi dans l'isolat d'arrière-plan).
-  ///
-  /// Si [seed] est fourni (graine commune envoyée par le serveur dans le
-  /// push), TOUS les téléphones forment EXACTEMENT les mêmes groupes à partir
-  /// de la liste triée pareil partout : l'appariement est donc réciproque
-  /// (Tess voit « Max », Max voit « Tess »). Sans graine, tirage aléatoire.
-  static Future<String?> buildMyMomentLabel({int? seed}) async {
-    final group = await GroupService.getCurrentGroup();
-    // Membres du groupe + prénoms ajoutés par l'admin (mêmes sur tous les
-    // téléphones → réciprocité préservée).
-    final cached = await GroupService.getCachedMemberNames();
-    final all = <String>[...cached, ...?group?.extraNames];
-    final self =
-        (await GroupService.getCurrentUser())?.username.trim().toLowerCase();
-
-    if (seed == null) {
-      // Ancien comportement (pas de graine) : tirage local aléatoire.
-      final rng = Random();
-      var names = all;
-      if (self != null && self.isNotEmpty) {
-        names = names.where((n) => n.trim().toLowerCase() != self).toList();
-      }
-      if (names.isEmpty) return null;
-      final shuffled = [...names]..shuffle(rng);
-      final lo = (group?.notifMinNames ?? 1).clamp(1, shuffled.length);
-      final hi = (group?.notifMaxNames ?? 3).clamp(lo, shuffled.length);
-      final count = lo + rng.nextInt(hi - lo + 1);
-      return _joinNames(shuffled.take(count).toList());
-    }
-
-    // Partition SYNCHRONISÉE basée sur l'IDENTITÉ (email), pas le pseudo :
-    // - « moi » est exclu par EMAIL → je ne me vois jamais, même si mon pseudo
-    //   dans le groupe diffère de mon pseudo de profil ;
-    // - les « prénoms en plus » qui correspondent déjà à un membre sont ignorés
-    //   (évite qu'une même personne apparaisse deux fois).
-    final selfEmail =
-        (await GroupService.getCurrentUser())?.email.trim().toLowerCase() ?? '';
-
-    // Liste AUTORITAIRE des membres (email + pseudo) depuis Firestore → même
-    // liste sur tous les téléphones. Repli sur le cache si indisponible.
-    final now = DateTime.now();
-    List<GroupMember> pool;
-    try {
-      pool = group != null ? await GroupService.getMembers(group.id) : [];
-    } catch (_) {
-      pool = [];
-    }
-    if (pool.isEmpty) {
-      pool = cached
-          .map((n) => GroupMember(
-              username: n, email: n.trim().toLowerCase(), joinedAt: now))
-          .toList();
-    }
-    // Prénoms en plus, dédoublonnés contre les pseudos de membres.
-    final seen = pool.map((m) => m.username.trim().toLowerCase()).toSet();
-    for (final n in (group?.extraNames ?? const <String>[])) {
-      final key = n.trim().toLowerCase();
-      if (key.isEmpty || seen.contains(key)) continue;
-      pool.add(GroupMember(username: n.trim(), email: 'extra:$key', joinedAt: now));
-      seen.add(key);
-    }
-    // Je dois être dans la liste pour être réparti ; sinon je m'ajoute.
-    if (selfEmail.isNotEmpty &&
-        !pool.any((m) => m.email.trim().toLowerCase() == selfEmail)) {
-      final me = await GroupService.getCurrentUser();
-      if (me != null) pool.add(me);
-    }
-    if (pool.length < 2 || selfEmail.isEmpty) return null;
-
-    // Tri stable par email (unique) → ordre identique sur tous les téléphones.
-    pool.sort((a, b) =>
-        a.email.trim().toLowerCase().compareTo(b.email.trim().toLowerCase()));
-
-    final rng = Random(seed);
-    final total = pool.length;
-    final loS = ((group?.notifMinNames ?? 1) + 1).clamp(2, total);
-    final hiS = ((group?.notifMaxNames ?? 3) + 1).clamp(loS, total);
-    final cap = loS + rng.nextInt(hiS - loS + 1);
-    final ordered = [...pool]..shuffle(rng);
-    final idx =
-        ordered.indexWhere((m) => m.email.trim().toLowerCase() == selfEmail);
-    if (idx < 0) return null;
-    final b = _groupBounds(total, idx, cap);
-    final others = ordered
-        .sublist(b[0], b[1])
-        .where((m) => m.email.trim().toLowerCase() != selfEmail)
-        .map((m) => m.username)
-        .toList();
-    if (others.isEmpty) return null;
-    return _joinNames(others);
-  }
-
-  /// Efface tous les moments locaux + l'ensemble « consommés ». À appeler au
-  /// changement / départ de groupe pour ne pas garder les alertes de l'ancien
-  /// groupe (sinon la bannière/caméra affichent encore ses prénoms).
-  static Future<void> clearMoments() async {
-    if (kIsWeb) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_momentsKey);
-    await prefs.remove(_consumedSetKey);
-    momentTick.value++;
-  }
-
-  /// Enregistre un moment reçu par push (FCM) → bannière + caméra.
-  /// Le libellé peut être vide (le téléphone n'a pas encore le cache des
-  /// prénoms) : on arme quand même le moment pour que la bannière apparaisse.
-  static Future<void> registerRemoteMoment(String label) async {
-    final c = await _cdSeconds();
-    await _addMoment(label, c > 0 ? c : 120);
-    // Réveille le feed s'il est ouvert (isolat principal uniquement).
-    momentTick.value++;
-  }
-
-  /// Affiche une notification (utilisé quand un push arrive app ouverte).
-  static Future<void> showRemote(
-      String title, String body, String label) async {
-    if (kIsWeb) return;
-    await _plugin.show(
-      9998,
-      title,
-      body,
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          _channelId,
-          _channelName,
-          importance: Importance.max,
-          priority: Priority.high,
-        ),
-        iOS: const DarwinNotificationDetails(),
-      ),
-      payload: label,
-    );
-  }
-
-  /// Comme activeMomentLabel mais SANS consommer (pour afficher une bannière).
-  static Future<String?> peekActiveMoment() async {
-    if (kIsWeb) return null;
-    final prefs = await SharedPreferences.getInstance();
-    // Relit le disque : le moment a pu être écrit par l'isolat d'arrière-plan
-    // (push reçu app fermée) que l'app principale ne voit pas sinon.
-    await prefs.reload();
-    final raw = prefs.getString(_momentsKey);
-    if (raw == null) return null;
-    final nowMs = DateTime.now().millisecondsSinceEpoch;
-    final windowMs = await _momentWindowMs();
-    final consumed = await _getConsumed(prefs);
-    var bestT = 0;
-    String? best;
-    try {
-      for (final e in jsonDecode(raw) as List) {
-        final t = (e['t'] as num).toInt();
-        // On ignore un moment déjà consommé (photo déjà prise) : le bandeau
-        // disparaît alors et on ne peut pas reprendre une 2e photo pour la
-        // même alerte.
-        if (nowMs >= t &&
-            nowMs <= t + windowMs &&
-            !consumed.contains(t) &&
-            t > bestT) {
-          bestT = t;
-          best = e['l'] as String;
-        }
-      }
-    } catch (_) {}
-    return best;
-  }
-
-  /// Marque le moment actuellement affiché (le plus récent NON consommé) comme
-  /// « consommé » (photo prise), pour que le bandeau disparaisse et qu'on ne
-  /// puisse pas reprendre une photo pour la même alerte (notif ou bandeau).
-  /// On choisit le même moment que peekActiveMoment afin de consommer bien
-  /// celui que l'utilisateur voyait, même s'il y a plusieurs alertes actives.
-  static Future<void> consumeActiveMoment() async {
-    if (kIsWeb) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.reload();
-    final raw = prefs.getString(_momentsKey);
-    if (raw == null) return;
-    final nowMs = DateTime.now().millisecondsSinceEpoch;
-    final windowMs = await _momentWindowMs();
-    final consumed = await _getConsumed(prefs);
-    var bestT = 0;
-    try {
-      for (final e in jsonDecode(raw) as List) {
-        final t = (e['t'] as num).toInt();
-        if (nowMs >= t &&
-            nowMs <= t + windowMs &&
-            !consumed.contains(t) &&
-            t > bestT) {
-          bestT = t;
-        }
-      }
-    } catch (_) {}
-    if (bestT > 0) await _addConsumed(prefs, bestT);
-  }
-
-  /// Enregistre un moment « maintenant » (utilisé par l'envoi immédiat) pour
-  /// que la caméra/bannière s'active tout de suite.
-  static Future<void> _addMoment(String label, int durationSeconds) async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = <dynamic>[];
-    final raw = prefs.getString(_momentsKey);
-    if (raw != null) {
-      try {
-        list.addAll(jsonDecode(raw) as List);
-      } catch (_) {}
-    }
-    list.add({
-      't': DateTime.now().millisecondsSinceEpoch,
-      'd': durationSeconds,
-      'l': label,
-    });
-    await prefs.setString(_momentsKey, jsonEncode(list));
   }
 
   /// Hash stable et identique sur tous les appareils (pas String.hashCode).
@@ -601,26 +592,21 @@ class NotificationService {
     return h;
   }
 
-  static Future<void> _schedule(
-    int id,
-    DateTime scheduledTime,
-    String personName,
-    int durationSeconds,
-  ) async {
+  static Future<void> _schedule(int id, AlertMoment m) async {
+    final scheduledTime = DateTime.fromMillisecondsSinceEpoch(m.sentAtMs);
     final tzTime = tz.TZDateTime.from(scheduledTime, tz.local);
 
     // Le chrono qui descend + la disparition automatique ne s'appliquent QUE si
     // le compte à rebours est activé. Sinon la notif reste (pas de pression de
     // temps) pour qu'on ait le temps de prendre la photo.
-    final countdownOn = await _cdEnabled();
-    final deadline = scheduledTime.add(Duration(seconds: durationSeconds));
+    final countdownOn = m.hasCountdown && await _cdEnabled();
 
     await _plugin.zonedSchedule(
       id,
-      '📸 $personName',
+      '📸 ${m.names}',
       countdownOn
-          ? 'Prends vite la photo — il te reste ${_fmtDuration(durationSeconds)} !'
-          : 'Prends ta photo avec $personName !',
+          ? 'Prends vite la photo — il te reste ${_fmtDuration(m.countdownSeconds)} !'
+          : 'Prends ta photo avec ${m.names} !',
       tzTime,
       NotificationDetails(
         android: AndroidNotificationDetails(
@@ -636,11 +622,11 @@ class NotificationService {
           // seulement si le compte à rebours est activé.
           usesChronometer: countdownOn,
           chronometerCountDown: countdownOn,
-          when: countdownOn ? deadline.millisecondsSinceEpoch : null,
+          when: countdownOn ? m.deadlineMs : null,
           showWhen: countdownOn,
           // La notif ne disparaît toute seule QUE si le compte à rebours est
           // activé ; sinon elle reste tant qu'on ne l'a pas ouverte.
-          timeoutAfter: countdownOn ? durationSeconds * 1000 : null,
+          timeoutAfter: countdownOn ? m.countdownSeconds * 1000 : null,
           autoCancel: true,
           // Bouton interactif : ouvre directement la caméra
           actions: <AndroidNotificationAction>[
@@ -658,7 +644,7 @@ class NotificationService {
           categoryIdentifier: _iosCategoryId,
         ),
       ),
-      payload: personName,
+      payload: payloadFor(m.id),
       // Planification inexacte : ne nécessite aucune permission spéciale
       // (compatible Play Store) et reste fidèle à l'esprit « spontané ».
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
@@ -678,54 +664,5 @@ class NotificationService {
     if (names.isEmpty) return '';
     if (names.length == 1) return names.first;
     return '${names.sublist(0, names.length - 1).join(', ')} et ${names.last}';
-  }
-
-  /// Envoie tout de suite une notification (sur cet appareil) avec 1 à 3
-  /// membres du groupe au hasard (jamais soi-même).
-  static Future<void> sendImmediate() async {
-    if (kIsWeb) return;
-    final random = Random();
-    final group = await GroupService.getCurrentGroup();
-    List<String> names = [
-      ...await GroupService.getCachedMemberNames(),
-      ...?group?.extraNames,
-    ];
-    if (names.isEmpty) names = await NamesService.getNames();
-    final self = (await GroupService.getCurrentUser())?.username.trim().toLowerCase();
-    if (self != null && self.isNotEmpty) {
-      names = names.where((n) => n.trim().toLowerCase() != self).toList();
-    }
-    if (names.isEmpty) return;
-    final shuffled = [...names]..shuffle(random);
-
-    // Respecte le réglage min/max noms du groupe, borné par la taille.
-    final maxTargets = shuffled.length;
-    final lo = (group?.notifMinNames ?? 1).clamp(1, maxTargets);
-    final hi = (group?.notifMaxNames ?? 3).clamp(lo, maxTargets);
-    final count = lo + random.nextInt(hi - lo + 1);
-    final label = _joinNames(shuffled.take(count).toList());
-    final countdownSeconds = group?.notifCountdownSeconds ?? 15;
-    // Enregistre le moment → l'app ouvrira la caméra / affichera la bannière.
-    await _addMoment(label, countdownSeconds > 0 ? countdownSeconds : 120);
-    await sendTestNotification(label);
-  }
-
-  /// Sends an immediate test notification with a random name.
-  static Future<void> sendTestNotification(String personName) async {
-    await _plugin.show(
-      9999,
-      '📸 C\'est l\'heure !',
-      'Prends une photo de $personName maintenant !',
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          _channelId,
-          _channelName,
-          importance: Importance.max,
-          priority: Priority.high,
-        ),
-        iOS: const DarwinNotificationDetails(),
-      ),
-      payload: personName,
-    );
   }
 }

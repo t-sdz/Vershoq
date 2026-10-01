@@ -7,50 +7,144 @@ import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:permission_handler/permission_handler.dart';
 
-import '../services/group_service.dart';
 import '../services/notification_service.dart';
 import '../services/storage_service.dart';
 import '../theme/v_theme.dart';
 import 'result_screen.dart';
 
 class CameraScreen extends StatefulWidget {
+  /// Alerte pour laquelle on prend la photo (null = ancien mode « libre »).
+  final String? alertId;
+
+  /// Prénoms à afficher en mode « libre » (sans alerte).
   final String personName;
 
-  const CameraScreen({super.key, required this.personName});
+  const CameraScreen({super.key, this.alertId, this.personName = ''});
+
+  /// Vrai tant qu'un écran caméra est affiché : les appelants le vérifient
+  /// avant d'en pousser un autre (pas de caméras empilées).
+  static bool get isOpen => _CameraScreenState._openCount > 0;
 
   @override
   State<CameraScreen> createState() => _CameraScreenState();
 }
 
+/// État de l'alerte associée à l'écran.
+enum _AlertState { loading, ready, unavailable, tooLate }
+
 class _CameraScreenState extends State<CameraScreen>
     with WidgetsBindingObserver {
+  static int _openCount = 0;
+
   CameraController? _controller;
   List<CameraDescription> _cameras = [];
   int _cameraIndex = 0;
   bool _isInitialized = false;
   bool _isTakingPhoto = false;
+  bool _starting = false;
+  // Contrôleur libéré quand l'app passe en arrière-plan → à relancer au retour.
+  bool _needsRestart = false;
   String? _errorMessage;
 
-  // Countdown
-  bool _countdownEnabled = false;
-  int _countdownSeconds = 15;
-  int _remaining = 0;
+  AlertMoment? _alert;
+  _AlertState _state = _AlertState.loading;
+
+  // Compte à rebours strict : deadline = sentAt + cd (même pour tout le groupe).
   Timer? _timer;
+  int _remainingMs = 0;
+  int _lastShownSecs = -1;
+  bool _expired = false;
+
+  bool get _hasCountdown => _alert?.hasCountdown ?? false;
+
+  String get _names => _alert?.names ?? widget.personName;
 
   @override
   void initState() {
     super.initState();
+    _openCount++;
     WidgetsBinding.instance.addObserver(this);
     _bootstrap();
   }
 
   Future<void> _bootstrap() async {
-    // Compte à rebours : réglage du GROUPE (fixé par l'admin), plus un réglage
-    // local par téléphone → tout le monde a le même chrono.
-    final group = await GroupService.getCurrentGroup();
-    _countdownEnabled = group?.notifCountdownEnabled ?? false;
-    _countdownSeconds = group?.notifCountdownSeconds ?? 15;
+    final id = widget.alertId;
+    if (id == null) {
+      // Ancien mode : pas d'alerte, pas de compte à rebours.
+      _state = _AlertState.ready;
+      await _initCamera();
+      return;
+    }
+    final m = await NotificationService.momentById(id);
+    final consumed = await NotificationService.isConsumed(id);
+    if (!mounted) return;
+    if (m == null || consumed) {
+      setState(() => _state = _AlertState.unavailable);
+      return;
+    }
+    if (m.isExpired()) {
+      setState(() => _state = _AlertState.tooLate);
+      return;
+    }
+    setState(() {
+      _alert = m;
+      _state = _AlertState.ready;
+    });
+    if (m.hasCountdown) _startTicker();
     await _initCamera();
+  }
+
+  void _startTicker() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(milliseconds: 250), (_) => _tick());
+    _tick();
+  }
+
+  /// Recalcule le temps restant à partir de l'horloge murale (pas de dérive).
+  void _tick() {
+    final alert = _alert;
+    if (!mounted || alert == null) return;
+    final ms = alert.deadlineMs - DateTime.now().millisecondsSinceEpoch;
+    final secs = ms <= 0 ? 0 : (ms / 1000).ceil();
+    if (secs != _lastShownSecs) {
+      if (secs <= 3 && secs > 0) HapticFeedback.lightImpact();
+      _lastShownSecs = secs;
+    }
+    setState(() => _remainingMs = ms > 0 ? ms : 0);
+    if (ms <= 0) {
+      _timer?.cancel();
+      _timer = null;
+      _onDeadline();
+    }
+  }
+
+  /// Temps écoulé : capture automatique si la caméra est prête, sinon trop
+  /// tard (pas de photo pour cette alerte).
+  void _onDeadline() {
+    if (_expired) return;
+    _expired = true;
+    if (_isTakingPhoto) return; // la photo en cours compte
+    final c = _controller;
+    if (_isInitialized && c != null && c.value.isInitialized) {
+      _takePhoto(auto: true);
+    } else {
+      _goTooLate();
+    }
+  }
+
+  void _goTooLate() {
+    _timer?.cancel();
+    _timer = null;
+    _expired = true;
+    final c = _controller;
+    _controller = null;
+    if (mounted) {
+      setState(() {
+        _isInitialized = false;
+        _state = _AlertState.tooLate;
+      });
+    }
+    c?.dispose();
   }
 
   Future<void> _initCamera() async {
@@ -84,76 +178,84 @@ class _CameraScreenState extends State<CameraScreen>
   }
 
   Future<void> _startController(CameraDescription camera) async {
-    for (final preset in [
-      ResolutionPreset.high,
-      ResolutionPreset.medium,
-      ResolutionPreset.low,
-    ]) {
-      final controller = CameraController(
-        camera,
-        preset,
-        enableAudio: false,
-      );
-      _controller = controller;
-      try {
-        await controller.initialize();
-        if (mounted) {
+    if (_starting) return;
+    _starting = true;
+    try {
+      for (final preset in [
+        ResolutionPreset.high,
+        ResolutionPreset.medium,
+        ResolutionPreset.low,
+      ]) {
+        final controller = CameraController(
+          camera,
+          preset,
+          enableAudio: false,
+        );
+        _controller = controller;
+        try {
+          await controller.initialize();
+          if (!mounted || _state != _AlertState.ready) {
+            // Écran fermé ou alerte expirée entre-temps.
+            if (_controller == controller) _controller = null;
+            await controller.dispose();
+            return;
+          }
           setState(() => _isInitialized = true);
-          _maybeStartCountdown();
+          return;
+        } on CameraException {
+          await controller.dispose();
+          if (_controller == controller) _controller = null;
         }
-        return;
-      } on CameraException {
-        await controller.dispose();
-        _controller = null;
       }
+      if (mounted) {
+        setState(() => _errorMessage = 'Impossible d\'initialiser la caméra');
+      }
+    } finally {
+      _starting = false;
     }
-    if (mounted) {
-      setState(() => _errorMessage = 'Impossible d\'initialiser la caméra');
-    }
-  }
-
-  void _maybeStartCountdown() {
-    if (!_countdownEnabled || _timer != null) return;
-    _remaining = _countdownSeconds;
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) return;
-      setState(() => _remaining--);
-      if (_remaining <= 3 && _remaining > 0) {
-        HapticFeedback.lightImpact();
-      }
-      if (_remaining <= 0) {
-        timer.cancel();
-        // Temps écoulé : capture automatique pour forcer la spontanéité
-        _takePhoto();
-      }
-    });
   }
 
   Future<void> _flipCamera() async {
-    if (_cameras.length < 2 || _isTakingPhoto) return;
+    if (_cameras.length < 2 || _isTakingPhoto || _expired) return;
     _cameraIndex = (_cameraIndex + 1) % _cameras.length;
-    await _controller?.dispose();
+    final old = _controller;
+    _controller = null;
     setState(() => _isInitialized = false);
+    await old?.dispose();
     await _startController(_cameras[_cameraIndex]);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final controller = _controller;
-    if (controller == null || !controller.value.isInitialized) return;
-
     if (state == AppLifecycleState.inactive) {
+      final controller = _controller;
+      // Pas pendant une capture (sinon la photo en cours échoue).
+      if (controller == null || _isTakingPhoto) return;
       // On marque non-initialisé AVANT de libérer, sinon l'aperçu se
       // reconstruit sur un contrôleur libéré → exception / écran noir.
+      _controller = null;
+      _needsRestart = true;
       if (mounted) setState(() => _isInitialized = false);
       controller.dispose();
     } else if (state == AppLifecycleState.resumed) {
-      _startController(controller.description);
+      if (!_needsRestart || _controller != null) return;
+      _needsRestart = false;
+      final alert = _alert;
+      if (alert != null && (alert.isExpired() || _expired)) {
+        _goTooLate();
+        return;
+      }
+      if (_state == _AlertState.ready &&
+          _errorMessage == null &&
+          _cameras.isNotEmpty) {
+        _startController(_cameras[_cameraIndex]);
+      }
     }
   }
 
   @override
   void dispose() {
+    _openCount--;
     _timer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
@@ -172,36 +274,42 @@ class _CameraScreenState extends State<CameraScreen>
     return file;
   }
 
-  Future<void> _takePhoto() async {
+  Future<void> _takePhoto({bool auto = false}) async {
     final controller = _controller;
     if (controller == null ||
         !controller.value.isInitialized ||
         _isTakingPhoto) {
       return;
     }
+    // Une fois le temps écoulé, plus de capture manuelle.
+    final alert = _alert;
+    if (!auto && alert != null && (_expired || alert.isExpired())) {
+      _goTooLate();
+      return;
+    }
 
     _timer?.cancel();
+    _timer = null;
     setState(() => _isTakingPhoto = true);
     HapticFeedback.heavyImpact();
 
+    final names = _names;
     try {
       final xFile = await controller.takePicture();
+      // Une photo par alerte : consommée dès que la capture a eu lieu.
+      await _consume();
       final photoFile = await _maybeFlip(File(xFile.path));
       final entry = await StorageService.savePhoto(
         photoFile: photoFile,
-        personName: widget.personName,
+        personName: names,
       );
 
       // Upload synchronously so the photo is in the group feed when we navigate back.
       // The capture loading indicator stays visible during the upload.
       final uploaded = await StorageService.uploadToGroup(
         File(entry.localPath),
-        widget.personName,
+        names,
       );
-
-      // Photo prise : on consomme le moment pour que le bandeau disparaisse et
-      // qu'on ne puisse pas reprendre une 2e photo pour la même alerte.
-      await NotificationService.consumeActiveMoment();
 
       if (mounted) {
         await Navigator.of(context).pushReplacement(
@@ -211,13 +319,26 @@ class _CameraScreenState extends State<CameraScreen>
         );
       }
     } catch (e) {
+      // Capture ratée : l'alerte est quand même consommée (une seule chance).
+      await _consume();
       if (mounted) {
-        setState(() => _isTakingPhoto = false);
+        setState(() {
+          _isTakingPhoto = false;
+          if (alert != null) _state = _AlertState.unavailable;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erreur : $e')),
         );
       }
     }
+  }
+
+  Future<void> _consume() async {
+    final id = widget.alertId;
+    if (id == null) return;
+    try {
+      await NotificationService.consumeAlert(id);
+    } catch (_) {}
   }
 
   @override
@@ -251,11 +372,31 @@ class _CameraScreenState extends State<CameraScreen>
   }
 
   Widget _buildBody() {
+    switch (_state) {
+      case _AlertState.loading:
+        return const Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        );
+      case _AlertState.unavailable:
+        return const _InfoView(
+          emoji: '📭',
+          title: 'Plus de photo à prendre pour cette alerte',
+        );
+      case _AlertState.tooLate:
+        return const _InfoView(
+          emoji: '⏰',
+          title: 'Trop tard ⏰',
+          subtitle: 'Le temps est écoulé pour cette alerte.',
+        );
+      case _AlertState.ready:
+        break;
+    }
+
     if (_errorMessage != null) {
       return _ErrorView(message: _errorMessage!);
     }
 
-    if (!_isInitialized) {
+    if (!_isInitialized || _controller == null) {
       return const Center(
         child: CircularProgressIndicator(color: Colors.white),
       );
@@ -282,9 +423,9 @@ class _CameraScreenState extends State<CameraScreen>
           left: 0,
           right: 0,
           child: _Header(
-            personName: widget.personName,
-            countdownEnabled: _countdownEnabled,
-            remaining: _remaining,
+            personName: _names,
+            countdownEnabled: _hasCountdown,
+            remainingMs: _remainingMs,
           ),
         ),
 
@@ -300,7 +441,8 @@ class _CameraScreenState extends State<CameraScreen>
               Expanded(
                 child: Center(
                   child: _CaptureButton(
-                    onPressed: _isTakingPhoto ? null : _takePhoto,
+                    onPressed:
+                        (_isTakingPhoto || _expired) ? null : () => _takePhoto(),
                     isLoading: _isTakingPhoto,
                   ),
                 ),
@@ -308,7 +450,10 @@ class _CameraScreenState extends State<CameraScreen>
               SizedBox(
                 width: 64,
                 child: _cameras.length > 1
-                    ? _FlipButton(onPressed: _isTakingPhoto ? null : _flipCamera)
+                    ? _FlipButton(
+                        onPressed: (_isTakingPhoto || _expired)
+                            ? null
+                            : _flipCamera)
                     : const SizedBox.shrink(),
               ),
             ],
@@ -337,17 +482,26 @@ class _CameraScreenState extends State<CameraScreen>
 class _Header extends StatelessWidget {
   final String personName;
   final bool countdownEnabled;
-  final int remaining;
+  final int remainingMs;
 
   const _Header({
     required this.personName,
     required this.countdownEnabled,
-    required this.remaining,
+    required this.remainingMs,
   });
+
+  /// « 45 s » sous la minute, sinon « m:ss ».
+  static String _fmt(int ms) {
+    final secs = ms <= 0 ? 0 : (ms / 1000).ceil();
+    if (secs < 60) return '$secs s';
+    final m = secs ~/ 60;
+    final s = (secs % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final urgent = remaining <= 3;
+    final urgent = remainingMs <= 3000;
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -390,7 +544,7 @@ class _Header extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                '⏱ $remaining s',
+                '⏱ ${_fmt(remainingMs)}',
                 style: TextStyle(
                   color: urgent ? Colors.white : Colors.black,
                   fontWeight: FontWeight.bold,
@@ -400,6 +554,61 @@ class _Header extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Écran simple (alerte indisponible / trop tard) avec un bouton retour.
+class _InfoView extends StatelessWidget {
+  final String emoji;
+  final String title;
+  final String? subtitle;
+
+  const _InfoView({required this.emoji, required this.title, this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 64)),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: VTheme.grotesk(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  subtitle!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70),
+                ),
+              ],
+              const SizedBox(height: 28),
+              FilledButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                ),
+                child: const Text('Retour'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

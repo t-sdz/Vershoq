@@ -9,6 +9,7 @@ import '../models/group.dart';
 import '../services/group_service.dart';
 import '../services/theme_service.dart';
 import '../theme/v_theme.dart';
+import 'app_root.dart';
 import 'create_group_screen.dart';
 import 'join_group_screen.dart';
 
@@ -96,8 +97,12 @@ class _GroupsScreenState extends State<GroupsScreen> {
       await GroupService.leaveGroup(group.id);
     } catch (_) {}
     if (!mounted) return;
-    // Revient à l'écran Compte (propre, sans groupe) quoi qu'il arrive.
-    Navigator.of(context).pop();
+    // Revient à l'accueil (Mon compte, sans groupe) quoi qu'il arrive. Pas de
+    // pop : la coquille est la racine, on aurait un écran noir.
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AppRoot()),
+      (_) => false,
+    );
   }
 
   Future<void> _removeMember(GroupMember member) async {
@@ -555,7 +560,11 @@ class _GroupsScreenState extends State<GroupsScreen> {
       return;
     }
     if (!mounted) return;
-    Navigator.of(context).pop(); // retour à l'écran Compte
+    // Retour à l'accueil (Mon compte) : la coquille est la racine.
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AppRoot()),
+      (_) => false,
+    );
   }
 
   Widget? _memberTrailing(Group group, GroupMember m, bool viewerIsAdmin,

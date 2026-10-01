@@ -4,9 +4,8 @@ import '../services/auth_service.dart';
 import '../services/user_profile_service.dart';
 import '../theme/v_theme.dart';
 import '../widgets/form_widgets.dart';
-import 'account_screen.dart';
+import 'app_root.dart';
 import 'signup_screen.dart';
-import 'verify_email_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -84,10 +83,10 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _goAfterAuth(bool verified) {
+    // AppRoot affiche la vérification d'email si besoin, sinon l'accueil
+    // (fil si on a un groupe, sinon Mon compte).
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(
-          builder: (_) =>
-              verified ? const AccountScreen() : const VerifyEmailScreen()),
+      MaterialPageRoute(builder: (_) => const AppRoot()),
       (_) => false,
     );
   }

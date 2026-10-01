@@ -1,5 +1,8 @@
 import 'dart:convert';
+import 'dart:ui';
 
+import 'package:crypto/crypto.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -11,127 +14,144 @@ import '../firebase_options.dart';
 import 'group_service.dart';
 import 'notification_service.dart';
 
-/// Rafraîchit, depuis Firestore (source unique de vérité), la config du groupe
-/// (dont les prénoms ajoutés par l'admin) ET la liste des membres, juste avant
-/// de calculer l'appariement. Ainsi TOUS les téléphones partent de la MÊME
-/// liste → mêmes groupes → réciprocité garantie (Tess↔Max). Ignoré si
-/// hors-ligne (on garde alors le cache).
-Future<void> _refreshGroupQuietly() async {
-  try {
-    final g = await GroupService.refreshCurrentGroup();
-    if (g != null) {
-      final members = await GroupService.getMembers(g.id);
-      await GroupService.cacheMemberNames(
-          members.map((m) => m.username).toList());
-    }
-  } catch (_) {}
-}
-
 /// Handler des messages reçus quand l'app est en arrière-plan / fermée.
 /// Doit être une fonction top-level.
+///
+/// Android affiche DÉJÀ la notif (bloc notification du push, texte personnel
+/// avec les prénoms) : ici on se contente d'armer l'alerte localement, sans
+/// réseau ni Firestore.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Cet isolat est séparé de l'app : il faut initialiser Firebase ici pour
-  // pouvoir relire la liste des membres depuis Firestore.
+  // Isolat séparé : enregistre les plugins avant toute utilisation.
+  DartPluginRegistrant.ensureInitialized();
   try {
     await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform);
   } catch (_) {}
-  // Ignore les pushes d'un autre groupe (ex : groupe quitté encore abonné).
-  if (!await _isForCurrentGroup(message)) return;
-  // On repart de la MÊME liste que les autres téléphones (source Firestore) →
-  // mêmes groupes → réciprocité. Chaque appareil calcule ensuite SES noms à
-  // partir de la graine commune.
-  await _refreshGroupQuietly();
   try {
-    final label =
-        await NotificationService.buildMyMomentLabel(seed: _seedOf(message)) ??
-            '';
-    await NotificationService.registerRemoteMoment(label);
+    // Cet isolat peut vivre longtemps : son cache SharedPreferences est
+    // périmé (groupe changé depuis…). On relit le disque d'abord.
+    await (await SharedPreferences.getInstance()).reload();
+    final alert = PushService.parseAlert(message);
+    if (alert == null) return;
+    if (!await PushService.isForCurrentGroup(alert)) return;
+    await NotificationService.upsertAlert(alert);
   } catch (e) {
     debugPrint('firebaseMessagingBackgroundHandler: $e');
   }
 }
 
-/// Lit la graine commune (data.seed) d'un push, ou null si absente.
-int? _seedOf(RemoteMessage message) {
-  final raw = message.data['seed'];
-  if (raw == null) return null;
-  return int.tryParse(raw.toString());
-}
-
-/// Vrai si le push concerne le groupe ACTUEL. Un push d'un AUTRE groupe (ex :
-/// un groupe qu'on a quitté mais dont l'abonnement FCM traîne encore) est
-/// ignoré → plus de mélange avec l'ancien groupe.
-Future<bool> _isForCurrentGroup(RemoteMessage message) async {
-  final gid = message.data['groupId']?.toString();
-  if (gid == null || gid.isEmpty) return true; // pas d'info : on laisse passer
-  final current = await GroupService.getCurrentGroup();
-  return current != null && current.id == gid;
-}
-
-/// Notifications push (FCM) via le serveur externe (Deno Deploy).
+/// Notifications push (FCM) via le serveur externe.
+///
+/// Le serveur envoie, pour chaque alerte, UN message PAR MEMBRE sur le topic
+/// personnel `u_<sha256(email)[0:40]>`, avec les prénoms propres à ce
+/// membre. Plus aucun calcul de prénoms sur le téléphone.
 class PushService {
-  /// Appelé quand l'utilisateur TAPE une notif push (ouvre la caméra).
-  static void Function(String label)? onOpen;
+  /// Appelé quand l'utilisateur TAPE une notif push (app en arrière-plan) :
+  /// ouvre la caméra pour cette alerte.
+  static void Function(String alertId)? onOpenAlert;
+
+  /// Topic FCM personnel d'un membre : « u_ » + 40 premiers caractères hexa
+  /// du SHA-256 de l'email normalisé (identique côté serveur).
+  static String memberTopicFor(String email) {
+    final digest = sha256.convert(utf8.encode(email.trim().toLowerCase()));
+    return 'u_${digest.toString().substring(0, 40)}';
+  }
+
+  /// Transforme les données d'un push en alerte, ou null si ce n'est pas une
+  /// alerte valide.
+  static AlertMoment? parseAlert(RemoteMessage message) {
+    final d = message.data;
+    if (d['type']?.toString() != 'alert') return null;
+    final id = d['alertId']?.toString() ?? '';
+    final groupId = d['groupId']?.toString() ?? '';
+    final sentAt = int.tryParse(d['sentAt']?.toString() ?? '');
+    if (id.isEmpty || groupId.isEmpty || sentAt == null) return null;
+    final cd = int.tryParse(d['cd']?.toString() ?? '') ?? 0;
+    return AlertMoment(
+      id: id,
+      groupId: groupId,
+      names: d['names']?.toString() ?? '',
+      sentAtMs: sentAt,
+      countdownSeconds: cd > 0 ? cd : 0,
+    );
+  }
+
+  /// Vrai si l'alerte concerne le groupe ACTUEL (sinon ignorée).
+  static Future<bool> isForCurrentGroup(AlertMoment alert) async {
+    final current = await GroupService.getCurrentGroup();
+    return current != null && current.id == alert.groupId;
+  }
 
   static Future<void> init() async {
     if (kIsWeb) return;
+    // Permission dans son propre try : un refus / une erreur ne doit pas
+    // empêcher l'enregistrement des listeners.
     try {
-      final fm = FirebaseMessaging.instance;
-      await fm.requestPermission();
+      await FirebaseMessaging.instance.requestPermission();
+    } catch (e) {
+      debugPrint('PushService.requestPermission: $e');
+    }
+    try {
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-      // App au premier plan : on affiche la notif + on arme la bannière.
+      // App au premier plan : Android n'affiche rien → on arme l'alerte et
+      // on affiche la notif nous-mêmes.
       FirebaseMessaging.onMessage.listen((m) async {
-        if (!await _isForCurrentGroup(m)) return; // autre groupe → ignore
-        await _refreshGroupQuietly();
-        final label =
-            await NotificationService.buildMyMomentLabel(seed: _seedOf(m)) ?? '';
-        await NotificationService.registerRemoteMoment(label);
-        await NotificationService.showRemote(
-          "📸 Snap'It",
-          label.isEmpty
-              ? "C'est le moment !"
-              : "Prends vite ta photo avec $label !",
-          label,
-        );
+        try {
+          final alert = PushService.parseAlert(m);
+          if (alert == null) return;
+          if (!await isForCurrentGroup(alert)) return; // autre groupe
+          final stored = await NotificationService.upsertAlert(alert);
+          await NotificationService.showAlertNotification(
+            stored,
+            title: m.notification?.title,
+            body: m.notification?.body,
+          );
+        } catch (e) {
+          debugPrint('PushService.onMessage: $e');
+        }
       });
 
       // App en arrière-plan puis on TAPE la notif système : ouvre la caméra.
       FirebaseMessaging.onMessageOpenedApp.listen((m) async {
-        if (!await _isForCurrentGroup(m)) return; // autre groupe → ignore
-        await _refreshGroupQuietly();
-        final label =
-            await NotificationService.buildMyMomentLabel(seed: _seedOf(m)) ?? '';
-        await NotificationService.registerRemoteMoment(label);
-        onOpen?.call(label);
+        try {
+          final alert = PushService.parseAlert(m);
+          if (alert == null) return;
+          await NotificationService.upsertAlert(alert);
+          onOpenAlert?.call(alert.id);
+        } catch (e) {
+          debugPrint('PushService.onMessageOpenedApp: $e');
+        }
       });
     } catch (e) {
       debugPrint('PushService.init: $e');
     }
   }
 
-  /// Si l'app a été lancée (état tué) en tapant une notif push, renvoie le
-  /// label du moment (les prénoms). Sinon null.
-  static Future<String?> initialTapLabel() async {
+  /// Si l'app a été lancée (état tué) en tapant une notif push, arme l'alerte
+  /// et renvoie son id. Sinon null. Aucun accès réseau.
+  static Future<String?> initialTapAlert() async {
     if (kIsWeb) return null;
     try {
       final msg = await FirebaseMessaging.instance.getInitialMessage();
       if (msg == null) return null;
-      if (!await _isForCurrentGroup(msg)) return null; // autre groupe → ignore
-      await _refreshGroupQuietly();
-      final label =
-          await NotificationService.buildMyMomentLabel(seed: _seedOf(msg)) ?? '';
-      await NotificationService.registerRemoteMoment(label);
-      return label;
+      final alert = parseAlert(msg);
+      if (alert == null) return null;
+      await NotificationService.upsertAlert(alert);
+      return alert.id;
     } catch (e) {
-      debugPrint('PushService.initialTapLabel: $e');
+      debugPrint('PushService.initialTapAlert: $e');
       return null;
     }
   }
 
-  static const _subKey = 'vershoq_subscribed_topics';
+  /// Noms COMPLETS des topics auxquels on est abonné.
+  static const _subKey = 'vershoq_subscribed_topic_names';
+
+  /// Ancien format : ids de groupes bruts (topics `group_<id>`).
+  static const _legacySubKey = 'vershoq_subscribed_topics';
+  static const _legacyMigratedKey = 'vershoq_group_topics_migrated';
 
   static Future<Set<String>> _subscribedSet() async {
     final prefs = await SharedPreferences.getInstance();
@@ -143,58 +163,78 @@ class PushService {
     await prefs.setStringList(_subKey, s.toList());
   }
 
-  /// Abonne l'appareil aux notifications de ces groupes (topics FCM).
-  static Future<void> subscribeGroups(List<String> groupIds) async {
-    if (kIsWeb) return;
-    final set = await _subscribedSet();
-    for (final id in groupIds) {
-      try {
-        await FirebaseMessaging.instance.subscribeToTopic('group_$id');
-        set.add(id);
-      } catch (_) {}
-    }
-    await _saveSubscribedSet(set);
-  }
-
+  /// Se désabonne de l'ancien topic de groupe (plus utilisé par le serveur).
   static Future<void> unsubscribeGroup(String groupId) async {
     if (kIsWeb) return;
     try {
       await FirebaseMessaging.instance.unsubscribeFromTopic('group_$groupId');
     } catch (_) {}
-    final set = await _subscribedSet();
-    set.remove(groupId);
-    await _saveSubscribedSet(set);
   }
 
-  /// Réconcilie les abonnements FCM avec les groupes réellement rejoints : se
-  /// désabonne des topics en trop (ex : un groupe quitté dont le désabonnement
-  /// avait échoué) et s'abonne aux manquants. À appeler à l'ouverture du fil.
-  static Future<void> reconcileSubscriptions(List<String> currentGroupIds) async {
-    if (kIsWeb) return;
-    final want = currentGroupIds.toSet();
-    final have = await _subscribedSet();
-    for (final id in have.difference(want)) {
+  /// Migration unique : désabonne des anciens topics `group_<id>` (ceux
+  /// mémorisés par l'ancien format + les groupes rejoints).
+  static Future<void> _migrateLegacyGroupTopics() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_legacyMigratedKey) == true) return;
+    final ids = <String>{
+      ...(prefs.getStringList(_legacySubKey) ?? const <String>[]),
+    };
+    try {
+      final joined = await GroupService.getJoinedGroups();
+      ids.addAll(joined.map((j) => j.group.id));
+    } catch (_) {}
+    var ok = true;
+    for (final id in ids) {
       try {
         await FirebaseMessaging.instance.unsubscribeFromTopic('group_$id');
-      } catch (_) {}
+      } catch (_) {
+        ok = false;
+      }
     }
-    for (final id in want.difference(have)) {
-      try {
-        await FirebaseMessaging.instance.subscribeToTopic('group_$id');
-      } catch (_) {}
+    if (ok) {
+      await prefs.remove(_legacySubKey);
+      await prefs.setBool(_legacyMigratedKey, true);
     }
-    await _saveSubscribedSet(want);
   }
 
-  /// Demande au serveur d'envoyer une notif à TOUT le groupe (même app fermée).
-  /// Renvoie true si le serveur a accepté.
-  static Future<bool> sendGroupPush({
-    required String groupId,
-    int? seed,
-    String? label,
-    String? title,
-    String? body,
-  }) async {
+  /// Réconcilie les abonnements FCM : un seul topic voulu, le topic personnel
+  /// de l'utilisateur connecté. Se désabonne de tout autre topic mémorisé
+  /// (ancien compte…). À appeler à l'ouverture du fil.
+  static Future<void> reconcileSubscriptions() async {
+    if (kIsWeb) return;
+    await _migrateLegacyGroupTopics();
+    final email = (await GroupService.getCurrentUser())?.email ??
+        FirebaseAuth.instance.currentUser?.email ??
+        '';
+    final want = <String>{
+      if (email.trim().isNotEmpty) memberTopicFor(email),
+    };
+    final have = await _subscribedSet();
+    final kept = <String>{};
+    for (final t in have.difference(want)) {
+      try {
+        await FirebaseMessaging.instance.unsubscribeFromTopic(t);
+      } catch (_) {
+        kept.add(t); // on réessaiera la prochaine fois
+      }
+    }
+    for (final t in want) {
+      if (have.contains(t)) {
+        kept.add(t);
+        continue;
+      }
+      try {
+        await FirebaseMessaging.instance.subscribeToTopic(t);
+        kept.add(t);
+      } catch (_) {}
+    }
+    await _saveSubscribedSet(kept);
+  }
+
+  /// Demande au serveur d'envoyer une alerte à TOUT le groupe (même app
+  /// fermée). Le serveur calcule les prénoms de chacun et envoie un message
+  /// par membre. Renvoie true si le serveur a accepté.
+  static Future<bool> sendGroupPush({required String groupId}) async {
     if (!AppConfig.pushEnabled) return false;
     try {
       final res = await http.post(
@@ -203,10 +243,6 @@ class PushService {
         body: jsonEncode({
           'secret': AppConfig.pushSecret,
           'groupId': groupId,
-          if (seed != null) 'seed': seed,
-          if (label != null) 'label': label,
-          if (title != null) 'title': title,
-          if (body != null) 'body': body,
         }),
       );
       return res.statusCode == 200;

@@ -77,7 +77,6 @@ class _GroupHomeScreenState extends State<GroupHomeScreen>
     final names = _members.map((m) => m.username).toList();
     if (names.isEmpty) return;
     final name = names[Random().nextInt(names.length)];
-    await NotificationService.sendTestNotification(name);
     if (mounted) {
       await Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => CameraScreen(personName: name)),

@@ -376,7 +376,7 @@ class GroupService {
       }
       // Le groupe n'existe plus (supprimé) : on le retire et on bascule.
       await leaveGroup(local.id);
-      return getCurrentGroup();
+      return await getCurrentGroup();
     } catch (_) {
       // Erreur réseau : on garde la version locale sans rien casser.
       return local;
@@ -444,6 +444,10 @@ class GroupService {
   }
 
   static Future<void> setActiveGroup(String groupId) async {
+    // Déjà le groupe actif : on ne touche à RIEN (sinon on effacerait
+    // l'alerte en cours et la notif affichée à chaque tap sur le groupe).
+    final current = await getCurrentGroup();
+    if (current != null && current.id == groupId) return;
     final list = await getJoinedGroups();
     JoinedGroup? target;
     for (final j in list) {
@@ -454,8 +458,9 @@ class GroupService {
     await prefs.setString(_currentGroupKey, jsonEncode(target.group.toJson()));
     await prefs.setString(_currentUserKey, jsonEncode(target.member.toMap()));
     await prefs.remove(_memberNamesKey);
-    await NotificationService.clearMoments(); // pas de moment de l'ancien groupe
-    await NotificationService.cancelAll();
+    // Le groupe change vraiment : pas d'alerte de l'ancien groupe. On ne
+    // vide PAS la barre de notifications (cancelAll) pour autant.
+    await NotificationService.clearMoments();
     await NotificationService.scheduleRandom();
   }
 

@@ -10,7 +10,7 @@ import '../services/group_service.dart';
 import '../services/user_profile_service.dart';
 import '../theme/v_theme.dart';
 import '../widgets/form_widgets.dart';
-import 'login_screen.dart';
+import 'app_root.dart';
 
 /// Page 3 — Infos du compte : nom, photo de profil, pseudo, email, mot de
 /// passe.
@@ -194,8 +194,9 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
       // 3. Suppression du compte Auth en dernier.
       await AuthService.deleteCurrentUser();
       if (mounted) {
+        // AppRoot affichera automatiquement l'écran de connexion.
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          MaterialPageRoute(builder: (_) => const AppRoot()),
           (_) => false,
         );
       }

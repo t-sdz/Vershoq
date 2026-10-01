@@ -11,7 +11,7 @@ import '../services/group_service.dart';
 import '../services/user_profile_service.dart';
 import '../theme/v_theme.dart';
 import '../widgets/form_widgets.dart';
-import 'feed_screen.dart';
+import 'app_root.dart';
 
 class CreateGroupScreen extends StatefulWidget {
   const CreateGroupScreen({super.key});
@@ -212,8 +212,8 @@ class _SuccessView extends StatelessWidget {
               gradient: VTheme.sunriseGradient,
               shadows: VTheme.glowSolar,
               onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const FeedScreen()),
-                (route) => route.isFirst,
+                MaterialPageRoute(builder: (_) => const AppRoot()),
+                (_) => false,
               ),
             ),
           ),

@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 import '../theme/v_theme.dart';
-import '../widgets/form_widgets.dart';
-import 'account_screen.dart';
-import 'login_screen.dart';
+import 'app_root.dart';
 
 /// Écran affiché tant que l'email n'est pas vérifié.
 class VerifyEmailScreen extends StatefulWidget {
@@ -33,7 +31,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       if (!mounted) return;
       if (verified) {
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const AccountScreen()),
+          MaterialPageRoute(builder: (_) => const AppRoot()),
           (_) => false,
         );
         return;
@@ -74,9 +72,10 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
 
   Future<void> _signOut() async {
     await AuthService.signOut();
+    // AppRoot affichera automatiquement l'écran de connexion.
     if (mounted) {
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        MaterialPageRoute(builder: (_) => const AppRoot()),
         (_) => false,
       );
     }

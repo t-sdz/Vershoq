@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../models/photo_entry.dart';
-import 'feed_screen.dart';
 
 class ResultScreen extends StatelessWidget {
   final PhotoEntry entry;
@@ -87,12 +86,9 @@ class ResultScreen extends StatelessWidget {
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: () {
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(
-                          builder: (_) => const FeedScreen(),
-                        ),
-                        (_) => false,
-                      );
+                      // Retour à l'accueil existant (fil + barre de
+                      // navigation), sans le recréer.
+                      Navigator.of(context).popUntil((r) => r.isFirst);
                     },
                     style: FilledButton.styleFrom(
                       backgroundColor: Colors.white,
