@@ -36,6 +36,8 @@ class _GalleryScreenState extends State<GalleryScreen> {
   String? _userUsername;
   List<PhotoEntry> _localEntries = [];
   bool _loading = true;
+  Future<List<MapEntry<String, GroupPhotoEntry>>>? _allFuture;
+  Stream<List<GroupPhotoEntry>>? _groupStream;
 
   @override
   void initState() {
@@ -50,6 +52,8 @@ class _GalleryScreenState extends State<GalleryScreen> {
     if (group == null) local = await StorageService.getEntries();
     if (mounted) {
       setState(() {
+        if (_groupId != group?.id) _groupStream = null;
+        _allFuture = null; // recharge la galerie globale
         _groupId = group?.id;
         _userEmail = user?.email;
         _userUsername = user?.username;
@@ -93,7 +97,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
     return StreamBuilder<List<GroupPhotoEntry>>(
       // En vue perso on filtre ensuite côté client, donc on charge une fenêtre
       // plus large pour ne pas masquer tes anciennes photos ; sinon 30 suffit.
-      stream: GroupPhotoService.streamGroupPhotos(_groupId!,
+      stream: _groupStream ??= GroupPhotoService.streamGroupPhotos(_groupId!,
           limit: widget.personalOnly ? 200 : 30),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
@@ -139,7 +143,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
 
   Widget _buildAllGroupsGallery() {
     return FutureBuilder<List<MapEntry<String, GroupPhotoEntry>>>(
-      future: _fetchAllMyPhotos(),
+      future: _allFuture ??= _fetchAllMyPhotos(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return Center(child: CircularProgressIndicator(color: VTheme.orange));
@@ -246,7 +250,7 @@ class _GroupPhotoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bytes = base64Decode(photo.imageBase64);
+    final bytes = photo.bytes;
     return GestureDetector(
       onTap: onTap,
       child: ClipRRect(
@@ -254,7 +258,12 @@ class _GroupPhotoCard extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Image.memory(bytes, fit: BoxFit.cover),
+            if (bytes != null)
+              // Vignette : décodée en petit pour économiser la mémoire.
+              Image.memory(bytes,
+                  fit: BoxFit.cover, cacheWidth: 400, gaplessPlayback: true)
+            else
+              Container(color: VTheme.surface),
             Positioned(
               bottom: 0,
               left: 0,

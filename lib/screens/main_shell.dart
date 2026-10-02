@@ -25,6 +25,7 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   late int _index = widget.initialIndex;
+  late final Set<int> _visited = {widget.initialIndex};
 
   // 4 écrans persistants ; « Capture » est une action, pas un onglet.
   late final List<Widget> _screens = [
@@ -34,7 +35,12 @@ class _MainShellState extends State<MainShell> {
     const GroupsScreen(),
     // Taper son groupe dans « Mon compte » ramène simplement sur le Fil.
     AccountScreen(onOpenGroup: () {
-      if (mounted) setState(() => _index = 0);
+      if (mounted) {
+        setState(() {
+          _index = 0;
+          _visited.add(0);
+        });
+      }
     }),
   ];
 
@@ -70,10 +76,21 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: VTheme.bgWarm,
-      body: IndexedStack(index: _index, children: _screens),
+      // Un onglet n'est construit qu'à sa première visite (la galerie, qui
+      // charge beaucoup de photos, ne ralentit plus l'ouverture de l'app).
+      body: IndexedStack(
+        index: _index,
+        children: [
+          for (var i = 0; i < _screens.length; i++)
+            _visited.contains(i) ? _screens[i] : const SizedBox.shrink(),
+        ],
+      ),
       bottomNavigationBar: _NavBar(
         index: _index,
-        onTapTab: (i) => setState(() => _index = i),
+        onTapTab: (i) => setState(() {
+          _index = i;
+          _visited.add(i);
+        }),
         onCapture: _onCapture,
       ),
     );

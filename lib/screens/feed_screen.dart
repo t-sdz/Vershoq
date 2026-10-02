@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -88,35 +87,48 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) _load();
   }
 
+  bool _refreshing = false;
+
   Future<void> _load() async {
-    // refreshCurrentGroup détecte un groupe supprimé et bascule automatiquement.
-    final group = await GroupService.refreshCurrentGroup();
-    // Auto-répare ma fiche membre si mon pseudo a changé (remplace l'ancien).
-    await GroupService.healMyMemberUsername();
-    final user  = await GroupService.getCurrentUser();
-    // Réconcilie les abonnements push : un seul topic, le topic personnel de
-    // l'utilisateur (le serveur y envoie ses alertes avec SES prénoms).
-    try {
-      await PushService.reconcileSubscriptions();
-    } catch (_) {}
-    // Récupère la dernière alerte du serveur si la notif n'a pas été
-    // traitée en arrière-plan (sinon « pas de photo à prendre »).
-    await PushService.syncLastAlert();
+    // 1. Affichage IMMÉDIAT à partir des données enregistrées sur le
+    //    téléphone (aucun accès réseau) : le fil apparaît tout de suite.
+    final group = await GroupService.getCurrentGroup();
+    final user = await GroupService.getCurrentUser();
     final activeAlert = await NotificationService.peekActiveAlert();
-    if (group != null) {
-      try {
-        final members = await GroupService.getMembers(group.id);
-        await GroupService.cacheMemberNames(members.map((m) => m.username).toList());
-        await NotificationService.scheduleRandom();
-      } catch (_) {}
-    }
     if (mounted) {
       setState(() {
-        _group   = group;
-        _user    = user;
+        _group = group;
+        _user = user;
         _loading = false;
       });
       _setActiveAlert(activeAlert);
+    }
+    // 2. Mises à jour réseau en arrière-plan (sans bloquer l'écran).
+    _refreshInBackground();
+  }
+
+  Future<void> _refreshInBackground() async {
+    if (_refreshing) return; // déjà en cours (retour rapide dans l'app)
+    _refreshing = true;
+    try {
+      // Récupère la dernière alerte du serveur si la notif n'a pas été
+      // traitée en arrière-plan (sinon « pas de photo à prendre »).
+      await PushService.syncLastAlert();
+      final a = await NotificationService.peekActiveAlert();
+      if (mounted) _setActiveAlert(a);
+
+      // refreshCurrentGroup détecte un groupe supprimé et bascule.
+      final group = await GroupService.refreshCurrentGroup();
+      if (mounted) setState(() => _group = group);
+      // Auto-répare ma fiche membre si mon pseudo a changé.
+      await GroupService.healMyMemberUsername();
+      // Un seul topic push : le topic personnel de l'utilisateur.
+      try {
+        await PushService.reconcileSubscriptions();
+      } catch (_) {}
+    } catch (_) {
+    } finally {
+      _refreshing = false;
     }
   }
 
@@ -205,13 +217,29 @@ class _GroupFeedState extends State<_GroupFeed> {
   // l'utilisateur arrive au bout → toutes les photos restent accessibles.
   int _limit = 30;
 
+  // Flux créé UNE fois (et recréé seulement si le groupe ou la fenêtre
+  // change) : le recréer à chaque reconstruction relançait le chargement de
+  // toutes les photos en boucle.
+  late Stream<List<GroupPhotoEntry>> _stream = _makeStream();
+
+  Stream<List<GroupPhotoEntry>> _makeStream() =>
+      GroupPhotoService.streamGroupPhotos(widget.groupId, limit: _limit);
+
+  @override
+  void didUpdateWidget(covariant _GroupFeed old) {
+    super.didUpdateWidget(old);
+    if (old.groupId != widget.groupId) {
+      _limit = 30;
+      _stream = _makeStream();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<GroupPhotoEntry>>(
-      stream:
-          GroupPhotoService.streamGroupPhotos(widget.groupId, limit: _limit),
+      stream: _stream,
       builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
+        if (!snap.hasData) {
           return Center(
               child: CircularProgressIndicator(color: VTheme.orange));
         }
@@ -223,7 +251,10 @@ class _GroupFeedState extends State<_GroupFeed> {
           onPageChanged: (i) {
             // Proche de la fin ET il y a peut-être plus → on agrandit.
             if (i >= photos.length - 2 && photos.length >= _limit) {
-              setState(() => _limit += 30);
+              setState(() {
+                _limit += 30;
+                _stream = _makeStream();
+              });
             }
           },
           itemBuilder: (_, i) => _GroupPhotoPage(
@@ -283,7 +314,8 @@ class _GroupPhotoPage extends StatelessWidget {
   Future<void> _download(BuildContext context) async {
     try {
       if (!await Gal.hasAccess()) await Gal.requestAccess();
-      final bytes = base64Decode(photo.imageBase64);
+      final bytes = photo.bytes;
+      if (bytes == null) throw 'image illisible';
       await Gal.putImageBytes(bytes, album: "Snap'It");
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -320,11 +352,11 @@ class _GroupPhotoPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Uint8List? bytes;
-    try {
-      final b = base64Decode(photo.imageBase64);
-      if (b.isNotEmpty) bytes = b;
-    } catch (_) {}
+    final bytes = photo.bytes;
+    // Décode à la taille de l'écran (pas en pleine résolution) : beaucoup
+    // moins de mémoire.
+    final mq = MediaQuery.of(context);
+    final cacheW = (mq.size.width * mq.devicePixelRatio).round();
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -337,7 +369,7 @@ class _GroupPhotoPage extends StatelessWidget {
             GestureDetector(
               onTap: bytes == null
                   ? null
-                  : () => _openFullscreen(context, bytes!),
+                  : () => _openFullscreen(context, bytes),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(24),
                 child: AspectRatio(
@@ -353,6 +385,8 @@ class _GroupPhotoPage extends StatelessWidget {
                       : Image.memory(
                           bytes,
                           fit: BoxFit.cover,
+                          cacheWidth: cacheW,
+                          gaplessPlayback: true,
                           errorBuilder: (_, __, ___) => Container(
                             color: VTheme.surface,
                             child: Center(
