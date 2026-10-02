@@ -82,7 +82,10 @@ class _CameraScreenState extends State<CameraScreen>
       await PushService.syncLastAlert();
       m = await NotificationService.momentById(id);
     }
-    final consumed = await NotificationService.isConsumed(id);
+    // Notif d'une alerte remplacée par une plus récente : on ouvre la
+    // caméra pour l'alerte EN COURS du groupe.
+    m ??= await NotificationService.peekActiveAlert();
+    final consumed = m == null || await NotificationService.isConsumed(m.id);
     if (!mounted) return;
     if (m == null || consumed) {
       setState(() => _state = _AlertState.unavailable);
@@ -340,7 +343,9 @@ class _CameraScreenState extends State<CameraScreen>
   }
 
   Future<void> _consume() async {
-    final id = widget.alertId;
+    // L'alerte réellement utilisée (peut être plus récente que celle de la
+    // notif tapée, si celle-ci a été remplacée).
+    final id = _alert?.id ?? widget.alertId;
     if (id == null) return;
     try {
       await NotificationService.consumeAlert(id);

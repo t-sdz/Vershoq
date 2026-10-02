@@ -14,7 +14,9 @@
 //     → c'est ta pushServerUrl.
 //
 // Requête : POST {secret, groupId} (les anciens champs seed/label/title/body
-// sont ignorés). Réponse : {ok:true, sent:n} ou {ok:false, error}.
+// sont ignorés). Réponse : {ok:true, sent, total} si au moins un message est
+// parti ; sinon {ok:false, error, sent, total, errors} (HTTP 502) ; 409 si
+// une alerte est encore en cours.
 //
 // NB : le code de répartition / sujet / message est DUPLIQUÉ depuis cron.ts
 // (les deux vals sont déployés séparément) : toute modif doit être faite aux
@@ -267,7 +269,7 @@ function buildMemberMessage(
         notification: {
           channel_id: "vershoq_shots",
           sound: "default",
-          tag: `snap_${groupId}`, // remplace la notif précédente du groupe
+          tag: alertId, // une notif distincte (avec son) par alerte
         },
       },
       apns: { payload: { aps: { sound: "default" } } },
@@ -332,9 +334,12 @@ function busySeconds(lastAlert: any, nowMs: number): number {
   return left > 0 ? Math.ceil(left / 1000) : 0;
 }
 
+// Résultat d'un envoi : messages acceptés par FCM / membres visés / erreurs.
+type SendReport = { sent: number; total: number; errors: string[] };
+
 // Envoie l'alerte à chaque membre sur SON sujet, avec SES prénoms.
-// Renvoie le nombre de messages acceptés par FCM. Une erreur sur un membre
-// est journalisée mais n'empêche pas l'envoi aux autres.
+// Une erreur sur un membre est journalisée (et renvoyée dans le rapport)
+// mais n'empêche pas l'envoi aux autres.
 async function sendAlert(
   token: string,
   project: string,
@@ -342,11 +347,12 @@ async function sendAlert(
   alertId: string,
   members: Array<Record<string, any>>,
   cfg: Record<string, any>,
-): Promise<number> {
+): Promise<SendReport> {
   const parts = computePartition(members, cfg, alertId);
   const cd = countdownOf(cfg);
   const sentAtMs = Date.now(); // même horodatage pour tous les membres
-  if (parts.length === 0) return 0;
+  const errors: string[] = [];
+  if (parts.length === 0) return { sent: 0, total: 0, errors };
   try {
     await recordLastAlert(token, project, groupId, alertId, sentAtMs, cd, parts);
   } catch (e) {
@@ -377,15 +383,16 @@ async function sendAlert(
       if (r.ok) {
         ok++;
       } else {
-        console.error(
-          `FCM ${r.status} pour ${email} (${alertId}) : ${await r.text()}`,
-        );
+        const txt = await r.text();
+        console.error(`FCM ${r.status} pour ${email} (${alertId}) : ${txt}`);
+        errors.push(`FCM ${r.status} : ${txt.slice(0, 200)}`);
       }
     } catch (e) {
       console.error(`FCM erreur pour ${email} (${alertId}) :`, e);
+      errors.push(`FCM erreur : ${String(e).slice(0, 200)}`);
     }
   }
-  return ok;
+  return { sent: ok, total: parts.length, errors };
 }
 
 // ── Firestore REST : membres d'un groupe ──────────────────────────────────────
@@ -462,8 +469,14 @@ export default async function (req: Request): Promise<Response> {
 
     const members = await fetchMembers(token, project, groupId);
     const alertId = `${groupId}_m_${Date.now()}`;
-    const sent = await sendAlert(token, project, groupId, alertId, members, cfg);
-    return json({ ok: true, sent });
+    const rep = await sendAlert(token, project, groupId, alertId, members, cfg);
+    if (rep.total === 0) {
+      return json({ ok: false, error: "no members", ...rep }, 422);
+    }
+    if (rep.sent === 0) {
+      return json({ ok: false, error: "fcm", ...rep }, 502);
+    }
+    return json({ ok: true, ...rep });
   } catch (e) {
     return json({ ok: false, error: String(e) }, 500);
   }

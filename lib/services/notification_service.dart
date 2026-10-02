@@ -129,8 +129,8 @@ class NotificationService {
   /// Id de notification stable (entier positif) dérivé de l'alertId.
   static int notifIdFor(String alertId) => alertId.hashCode & 0x7fffffff;
 
-  /// Tag de la notif d'alerte d'un groupe (identique côté serveur) : une
-  /// nouvelle alerte REMPLACE la précédente dans la barre de notifs.
+  /// Ancien tag commun aux notifs d'un groupe (version 1.0.4) : sert
+  /// seulement à nettoyer les notifs affichées par cette version.
   static String trayTagFor(String groupId) => 'snap_$groupId';
 
   static Future<void> init({
@@ -265,6 +265,7 @@ class NotificationService {
         .toList();
     final existing = list.where((e) => e.id == m.id);
     final AlertMoment stored;
+    final superseded = <String>[];
     if (existing.isNotEmpty) {
       stored = existing.first;
     } else {
@@ -272,11 +273,19 @@ class NotificationService {
       // Une nouvelle alerte annule et remplace les précédentes du groupe
       // (le serveur n'en envoie une pendant un compte à rebours que s'il est
       // terminé ; sans compte à rebours, la nouvelle remplace l'ancienne).
-      list.removeWhere(
-          (e) => e.groupId == m.groupId && e.sentAtMs <= m.sentAtMs);
+      for (final e in list) {
+        if (e.groupId == m.groupId && e.sentAtMs <= m.sentAtMs) {
+          superseded.add(e.id);
+        }
+      }
+      list.removeWhere((e) => superseded.contains(e.id));
       list.add(m);
     }
     await _writeAlerts(prefs, list);
+    // Retire de la barre les notifs des alertes remplacées.
+    for (final id in superseded) {
+      await _cancelTray(id);
+    }
     // Réveille le feed s'il est ouvert (sans effet dans l'isolat d'arrière-plan).
     momentTick.value++;
     return stored;
@@ -337,9 +346,9 @@ class NotificationService {
     await prefs.setStringList(_consumedAlertsKey, trimmed);
     // Retire la notif de la barre (affichée par nous ou par Android/FCM, qui
     // utilise le tag = alertId).
+    await _cancelTray(id);
     try {
-      await _plugin.cancel(notifIdFor(id), tag: id);
-      await _plugin.cancel(0, tag: id);
+      // Notifs postées par la version précédente (tag commun au groupe).
       final m = _readAlerts(prefs).where((e) => e.id == id);
       if (m.isNotEmpty) {
         final tag = trayTagFor(m.first.groupId);
@@ -348,6 +357,45 @@ class NotificationService {
       }
     } catch (_) {}
     momentTick.value++;
+  }
+
+  /// Retire de la barre la notif d'une alerte, qu'elle ait été affichée par
+  /// nous (id dérivé, tag = alertId) ou par Android/FCM (id 0, tag = alertId).
+  static Future<void> _cancelTray(String id) async {
+    try {
+      await _plugin.cancel(notifIdFor(id), tag: id);
+      await _plugin.cancel(0, tag: id);
+    } catch (_) {}
+  }
+
+  /// Affiche tout de suite une notif de test. Renvoie false si les
+  /// notifications de l'app sont bloquées sur le téléphone.
+  static Future<bool> showTestNotification() async {
+    if (kIsWeb) return true;
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    var enabled = true;
+    try {
+      await android?.requestNotificationsPermission();
+      enabled = await android?.areNotificationsEnabled() ?? true;
+    } catch (_) {}
+    try {
+      await _plugin.show(
+        999001,
+        "📸 Snap'It",
+        'Notif de test : les notifications fonctionnent sur ce téléphone.',
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            _channelId,
+            _channelName,
+            importance: Importance.max,
+            priority: Priority.high,
+          ),
+          iOS: DarwinNotificationDetails(),
+        ),
+      );
+    } catch (_) {}
+    return enabled;
   }
 
   /// Efface toutes les alertes locales + l'ensemble « consommés ». À appeler
@@ -382,9 +430,8 @@ class NotificationService {
     if (kIsWeb) return;
     final countdown = m.hasCountdown;
     final remainingMs = m.deadlineMs - DateTime.now().millisecondsSinceEpoch;
-    final tag = trayTagFor(m.groupId);
     await _plugin.show(
-      notifIdFor(tag),
+      notifIdFor(m.id),
       title ?? "📸 Snap'It",
       body ?? defaultAlertBody(m),
       NotificationDetails(
@@ -394,7 +441,7 @@ class NotificationService {
           importance: Importance.max,
           priority: Priority.high,
           category: AndroidNotificationCategory.reminder,
-          tag: tag,
+          tag: m.id,
           // Chrono natif qui décompte jusqu'à la deadline commune.
           usesChronometer: countdown,
           chronometerCountDown: countdown,

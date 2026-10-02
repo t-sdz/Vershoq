@@ -114,6 +114,12 @@ class PushService {
         }
       });
 
+      // Le jeton FCM du téléphone peut changer (mise à jour, réinstallation,
+      // services Google…) : on se réabonne alors au topic personnel.
+      FirebaseMessaging.instance.onTokenRefresh.listen((_) {
+        reconcileSubscriptions().catchError((_) {});
+      });
+
       // App en arrière-plan puis on TAPE la notif système : ouvre la caméra.
       FirebaseMessaging.onMessageOpenedApp.listen((m) async {
         try {
@@ -241,7 +247,7 @@ class PushService {
 
   /// Réconcilie les abonnements FCM : un seul topic voulu, le topic personnel
   /// de l'utilisateur connecté. Se désabonne de tout autre topic mémorisé
-  /// (ancien compte…). À appeler à l'ouverture du fil.
+  /// (ancien compte…). Appelé à chaque ouverture de l'app.
   static Future<void> reconcileSubscriptions() async {
     if (kIsWeb) return;
     await _migrateLegacyGroupTopics();
@@ -261,24 +267,26 @@ class PushService {
       }
     }
     for (final t in want) {
-      if (have.contains(t)) {
-        kept.add(t);
-        continue;
-      }
+      // TOUJOURS (ré)abonner, même si on croit l'être déjà : l'abonnement est
+      // lié au jeton FCM du téléphone, qui peut avoir changé sans qu'on le
+      // sache. L'appel est sans effet si on est déjà abonné.
       try {
         await FirebaseMessaging.instance.subscribeToTopic(t);
         kept.add(t);
-      } catch (_) {}
+      } catch (_) {
+        if (have.contains(t)) kept.add(t);
+      }
     }
     await _saveSubscribedSet(kept);
   }
 
   /// Demande au serveur d'envoyer une alerte à TOUT le groupe (même app
   /// fermée). Le serveur calcule les prénoms de chacun et envoie un message
-  /// par membre. Renvoie [PushResult.sent] si accepté, [PushResult.busy]
-  /// (avec les secondes restantes) si une alerte est encore en cours.
+  /// par membre, puis renvoie combien de messages sont réellement partis.
   static Future<PushResult> sendGroupPush({required String groupId}) async {
-    if (!AppConfig.pushEnabled) return const PushResult.failed();
+    if (!AppConfig.pushEnabled) {
+      return const PushResult.failed('serveur non configuré');
+    }
     try {
       final res = await http.post(
         Uri.parse(AppConfig.pushServerUrl),
@@ -288,21 +296,30 @@ class PushService {
           'groupId': groupId,
         }),
       );
-      if (res.statusCode == 200) return const PushResult.sent();
-      if (res.statusCode == 409) {
-        var remaining = 0;
-        try {
-          final j = jsonDecode(res.body);
-          if (j is Map && j['remaining'] is num) {
-            remaining = (j['remaining'] as num).toInt();
-          }
-        } catch (_) {}
-        return PushResult.busy(remaining);
+      Map<String, dynamic> j = const {};
+      try {
+        final d = jsonDecode(res.body);
+        if (d is Map<String, dynamic>) j = d;
+      } catch (_) {}
+      int n(String k) => j[k] is num ? (j[k] as num).toInt() : 0;
+      if (res.statusCode == 200) {
+        return PushResult.sent(n('sent'), n('total'));
       }
-      return const PushResult.failed();
+      if (res.statusCode == 409) return PushResult.busy(n('remaining'));
+      if (j['error'] == 'no members') {
+        return const PushResult.failed('pas assez de membres dans le groupe');
+      }
+      if (j['error'] == 'fcm') {
+        final errs = j['errors'];
+        final first =
+            errs is List && errs.isNotEmpty ? errs.first.toString() : '';
+        return PushResult.failed(
+            'Firebase a refusé l\'envoi${first.isEmpty ? '' : ' ($first)'}');
+      }
+      return PushResult.failed('erreur serveur ${res.statusCode}');
     } catch (e) {
       debugPrint('PushService.sendGroupPush: $e');
-      return const PushResult.failed();
+      return const PushResult.failed('serveur injoignable');
     }
   }
 }
@@ -311,17 +328,30 @@ class PushService {
 class PushResult {
   final bool ok;
 
+  /// Messages acceptés par Firebase / membres visés (si [ok]).
+  final int sent;
+  final int total;
+
   /// Secondes restantes de l'alerte en cours (> 0 = envoi refusé).
   final int busySeconds;
 
-  const PushResult.sent()
+  /// Raison de l'échec (si ni [ok] ni [isBusy]).
+  final String error;
+
+  const PushResult.sent(this.sent, this.total)
       : ok = true,
-        busySeconds = 0;
-  const PushResult.failed()
+        busySeconds = 0,
+        error = '';
+  const PushResult.failed([this.error = 'serveur injoignable'])
       : ok = false,
+        sent = 0,
+        total = 0,
         busySeconds = 0;
   const PushResult.busy(int seconds)
       : ok = false,
+        sent = 0,
+        total = 0,
+        error = '',
         busySeconds = seconds < 1 ? 1 : seconds;
 
   bool get isBusy => busySeconds > 0;

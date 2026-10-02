@@ -297,7 +297,7 @@ function buildMemberMessage(
         notification: {
           channel_id: "vershoq_shots",
           sound: "default",
-          tag: `snap_${groupId}`, // remplace la notif précédente du groupe
+          tag: alertId, // une notif distincte (avec son) par alerte
         },
       },
       apns: { payload: { aps: { sound: "default" } } },
@@ -362,9 +362,12 @@ function busySeconds(lastAlert: any, nowMs: number): number {
   return left > 0 ? Math.ceil(left / 1000) : 0;
 }
 
+// Résultat d'un envoi : messages acceptés par FCM / membres visés / erreurs.
+type SendReport = { sent: number; total: number; errors: string[] };
+
 // Envoie l'alerte à chaque membre sur SON sujet, avec SES prénoms.
-// Renvoie le nombre de messages acceptés par FCM. Une erreur sur un membre
-// est journalisée mais n'empêche pas l'envoi aux autres.
+// Une erreur sur un membre est journalisée (et renvoyée dans le rapport)
+// mais n'empêche pas l'envoi aux autres.
 async function sendAlert(
   token: string,
   project: string,
@@ -372,11 +375,12 @@ async function sendAlert(
   alertId: string,
   members: Array<Record<string, any>>,
   cfg: Record<string, any>,
-): Promise<number> {
+): Promise<SendReport> {
   const parts = computePartition(members, cfg, alertId);
   const cd = countdownOf(cfg);
   const sentAtMs = Date.now(); // même horodatage pour tous les membres
-  if (parts.length === 0) return 0;
+  const errors: string[] = [];
+  if (parts.length === 0) return { sent: 0, total: 0, errors };
   try {
     await recordLastAlert(token, project, groupId, alertId, sentAtMs, cd, parts);
   } catch (e) {
@@ -407,15 +411,16 @@ async function sendAlert(
       if (r.ok) {
         ok++;
       } else {
-        console.error(
-          `FCM ${r.status} pour ${email} (${alertId}) : ${await r.text()}`,
-        );
+        const txt = await r.text();
+        console.error(`FCM ${r.status} pour ${email} (${alertId}) : ${txt}`);
+        errors.push(`FCM ${r.status} : ${txt.slice(0, 200)}`);
       }
     } catch (e) {
       console.error(`FCM erreur pour ${email} (${alertId}) :`, e);
+      errors.push(`FCM erreur : ${String(e).slice(0, 200)}`);
     }
   }
-  return ok;
+  return { sent: ok, total: parts.length, errors };
 }
 
 // ── Firestore REST : membres d'un groupe ──────────────────────────────────────
@@ -507,9 +512,13 @@ export default async function () {
       const alertId = `${id}_${dateStr}_${i}`;
       try {
         const members = await fetchMembers(token, project, id!);
-        const n = await sendAlert(token, project, id!, alertId, members, cfg);
-        if (n > 0) lastAlert = { sentAt: Date.now(), cd: countdownOf(cfg) };
-        console.log(`Alerte ${alertId} : ${n} message(s) envoyé(s)`);
+        const rep = await sendAlert(token, project, id!, alertId, members, cfg);
+        if (rep.sent > 0) {
+          lastAlert = { sentAt: Date.now(), cd: countdownOf(cfg) };
+        }
+        console.log(
+          `Alerte ${alertId} : ${rep.sent}/${rep.total} message(s) envoyé(s)`,
+        );
       } catch (e) {
         console.error(`Alerte ${alertId} en échec :`, e);
       }

@@ -135,6 +135,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _SectionTitle('Apparence'),
           const SizedBox(height: 8),
           _buildAppearanceCard(),
+          const SizedBox(height: 24),
+          _SectionTitle('Notifications de ce téléphone'),
+          const SizedBox(height: 8),
+          _buildPhoneNotifCard(),
           const SizedBox(height: 32),
           // Réservé à l'admin du groupe.
           if (_isAdmin) ...[
@@ -183,6 +187,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  /// Vérifie que CE téléphone peut recevoir les alertes : réabonnement au
+  /// topic personnel + autorisation + notif de test locale.
+  Widget _buildPhoneNotifCard() {
+    return _settingsCard([
+      ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(Icons.notifications_outlined, color: VTheme.orange),
+        title: Text('Tester les notifications',
+            style: TextStyle(color: VTheme.warmDark)),
+        subtitle: Text(
+            'Réinscrit ce téléphone aux alertes et affiche une notif de test',
+            style: TextStyle(color: VTheme.warmMuted, fontSize: 12)),
+        onTap: () async {
+          try {
+            await PushService.reconcileSubscriptions();
+          } catch (_) {}
+          final enabled = await NotificationService.showTestNotification();
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            duration: const Duration(seconds: 6),
+            content: Text(enabled
+                ? 'Notif de test envoyée. Si rien ne s\'affiche, vérifie dans '
+                    'les réglages du téléphone : notifications de Snap\'It, '
+                    'mode Ne pas déranger, démarrage automatique.'
+                : 'Les notifications de Snap\'It sont BLOQUÉES sur ce '
+                    'téléphone. Active-les : Paramètres du téléphone → '
+                    'Applications → Snap\'It → Notifications.'),
+          ));
+        },
+      ),
+    ]);
   }
 
   Widget _buildAppearanceCard() {
@@ -382,7 +419,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (mounted) {
                   final String msg;
                   if (result.ok) {
-                    msg = 'Notif envoyée à tout le groupe !';
+                    msg = result.total > 0 && result.sent < result.total
+                        ? 'Notif envoyée à ${result.sent} membre(s) sur ${result.total}.'
+                        : 'Notif envoyée à tout le groupe !';
                   } else if (result.isBusy) {
                     final s = result.busySeconds;
                     final left = s < 60
@@ -392,7 +431,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         'Réessaie quand le compte à rebours est fini '
                         '(encore $left).';
                   } else {
-                    msg = 'Échec de l\'envoi (serveur injoignable)';
+                    msg = 'Échec de l\'envoi : ${result.error}';
                   }
                   ScaffoldMessenger.of(context)
                       .showSnackBar(SnackBar(content: Text(msg)));

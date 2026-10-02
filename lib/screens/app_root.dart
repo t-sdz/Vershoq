@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 import '../services/group_service.dart';
+import '../services/push_service.dart';
 import '../theme/v_theme.dart';
 import 'account_screen.dart';
 import 'login_screen.dart';
@@ -128,6 +129,11 @@ class _AuthGateState extends State<_AuthGate> {
     try {
       hasGroup = await GroupService.getCurrentGroup() != null;
     } catch (_) {}
+    // Abonne ce téléphone aux alertes de ce compte dès la connexion (sans
+    // attendre l'ouverture du fil, et sans bloquer l'affichage).
+    if (verified) {
+      PushService.reconcileSubscriptions().catchError((_) {});
+    }
     if (mounted) {
       setState(() {
         _verified = verified;

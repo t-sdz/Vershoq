@@ -111,6 +111,11 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     if (_refreshing) return; // déjà en cours (retour rapide dans l'app)
     _refreshing = true;
     try {
+      // D'abord : (ré)abonne ce téléphone à son topic personnel, sinon il ne
+      // reçoit pas les notifs.
+      try {
+        await PushService.reconcileSubscriptions();
+      } catch (_) {}
       // Récupère la dernière alerte du serveur si la notif n'a pas été
       // traitée en arrière-plan (sinon « pas de photo à prendre »).
       await PushService.syncLastAlert();
@@ -122,10 +127,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       if (mounted) setState(() => _group = group);
       // Auto-répare ma fiche membre si mon pseudo a changé.
       await GroupService.healMyMemberUsername();
-      // Un seul topic push : le topic personnel de l'utilisateur.
-      try {
-        await PushService.reconcileSubscriptions();
-      } catch (_) {}
     } catch (_) {
     } finally {
       _refreshing = false;
