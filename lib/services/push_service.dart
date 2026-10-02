@@ -275,9 +275,10 @@ class PushService {
 
   /// Demande au serveur d'envoyer une alerte à TOUT le groupe (même app
   /// fermée). Le serveur calcule les prénoms de chacun et envoie un message
-  /// par membre. Renvoie true si le serveur a accepté.
-  static Future<bool> sendGroupPush({required String groupId}) async {
-    if (!AppConfig.pushEnabled) return false;
+  /// par membre. Renvoie [PushResult.sent] si accepté, [PushResult.busy]
+  /// (avec les secondes restantes) si une alerte est encore en cours.
+  static Future<PushResult> sendGroupPush({required String groupId}) async {
+    if (!AppConfig.pushEnabled) return const PushResult.failed();
     try {
       final res = await http.post(
         Uri.parse(AppConfig.pushServerUrl),
@@ -287,10 +288,41 @@ class PushService {
           'groupId': groupId,
         }),
       );
-      return res.statusCode == 200;
+      if (res.statusCode == 200) return const PushResult.sent();
+      if (res.statusCode == 409) {
+        var remaining = 0;
+        try {
+          final j = jsonDecode(res.body);
+          if (j is Map && j['remaining'] is num) {
+            remaining = (j['remaining'] as num).toInt();
+          }
+        } catch (_) {}
+        return PushResult.busy(remaining);
+      }
+      return const PushResult.failed();
     } catch (e) {
       debugPrint('PushService.sendGroupPush: $e');
-      return false;
+      return const PushResult.failed();
     }
   }
+}
+
+/// Résultat d'une demande d'envoi au serveur.
+class PushResult {
+  final bool ok;
+
+  /// Secondes restantes de l'alerte en cours (> 0 = envoi refusé).
+  final int busySeconds;
+
+  const PushResult.sent()
+      : ok = true,
+        busySeconds = 0;
+  const PushResult.failed()
+      : ok = false,
+        busySeconds = 0;
+  const PushResult.busy(int seconds)
+      : ok = false,
+        busySeconds = seconds < 1 ? 1 : seconds;
+
+  bool get isBusy => busySeconds > 0;
 }

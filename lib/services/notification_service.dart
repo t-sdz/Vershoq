@@ -129,6 +129,10 @@ class NotificationService {
   /// Id de notification stable (entier positif) dérivé de l'alertId.
   static int notifIdFor(String alertId) => alertId.hashCode & 0x7fffffff;
 
+  /// Tag de la notif d'alerte d'un groupe (identique côté serveur) : une
+  /// nouvelle alerte REMPLACE la précédente dans la barre de notifs.
+  static String trayTagFor(String groupId) => 'snap_$groupId';
+
   static Future<void> init({
     required void Function(String payload) onTap,
   }) async {
@@ -265,6 +269,11 @@ class NotificationService {
       stored = existing.first;
     } else {
       stored = m;
+      // Une nouvelle alerte annule et remplace les précédentes du groupe
+      // (le serveur n'en envoie une pendant un compte à rebours que s'il est
+      // terminé ; sans compte à rebours, la nouvelle remplace l'ancienne).
+      list.removeWhere(
+          (e) => e.groupId == m.groupId && e.sentAtMs <= m.sentAtMs);
       list.add(m);
     }
     await _writeAlerts(prefs, list);
@@ -331,6 +340,12 @@ class NotificationService {
     try {
       await _plugin.cancel(notifIdFor(id), tag: id);
       await _plugin.cancel(0, tag: id);
+      final m = _readAlerts(prefs).where((e) => e.id == id);
+      if (m.isNotEmpty) {
+        final tag = trayTagFor(m.first.groupId);
+        await _plugin.cancel(notifIdFor(tag), tag: tag);
+        await _plugin.cancel(0, tag: tag);
+      }
     } catch (_) {}
     momentTick.value++;
   }
@@ -367,8 +382,9 @@ class NotificationService {
     if (kIsWeb) return;
     final countdown = m.hasCountdown;
     final remainingMs = m.deadlineMs - DateTime.now().millisecondsSinceEpoch;
+    final tag = trayTagFor(m.groupId);
     await _plugin.show(
-      notifIdFor(m.id),
+      notifIdFor(tag),
       title ?? "📸 Snap'It",
       body ?? defaultAlertBody(m),
       NotificationDetails(
@@ -378,7 +394,7 @@ class NotificationService {
           importance: Importance.max,
           priority: Priority.high,
           category: AndroidNotificationCategory.reminder,
-          tag: m.id,
+          tag: tag,
           // Chrono natif qui décompte jusqu'à la deadline commune.
           usesChronometer: countdown,
           chronometerCountDown: countdown,

@@ -375,15 +375,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () async {
                 // Le serveur calcule les prénoms de chacun et envoie une
                 // notif personnelle à chaque membre (expéditeur compris).
-                var sent = false;
+                var result = const PushResult.failed();
                 if (_groupId != null) {
-                  sent = await PushService.sendGroupPush(groupId: _groupId!);
+                  result = await PushService.sendGroupPush(groupId: _groupId!);
                 }
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text(sent
-                          ? 'Notif envoyée à tout le groupe !'
-                          : 'Échec de l\'envoi (serveur injoignable)')));
+                  final String msg;
+                  if (result.ok) {
+                    msg = 'Notif envoyée à tout le groupe !';
+                  } else if (result.isBusy) {
+                    final s = result.busySeconds;
+                    final left = s < 60
+                        ? '$s s'
+                        : '${s ~/ 60} min${s % 60 == 0 ? '' : ' ${s % 60} s'}';
+                    msg = '⏳ Une notif est déjà en cours. '
+                        'Réessaie quand le compte à rebours est fini '
+                        '(encore $left).';
+                  } else {
+                    msg = 'Échec de l\'envoi (serveur injoignable)';
+                  }
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(SnackBar(content: Text(msg)));
                 }
               },
             ),

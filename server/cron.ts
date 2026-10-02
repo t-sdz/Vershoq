@@ -297,7 +297,7 @@ function buildMemberMessage(
         notification: {
           channel_id: "vershoq_shots",
           sound: "default",
-          tag: alertId,
+          tag: `snap_${groupId}`, // remplace la notif précédente du groupe
         },
       },
       apns: { payload: { aps: { sound: "default" } } },
@@ -348,6 +348,18 @@ async function recordLastAlert(
     },
   );
   if (!r.ok) throw new Error(`lastAlert ${r.status}: ${await r.text()}`);
+}
+
+// Alerte encore « en cours » : son compte à rebours n'est pas fini.
+// Renvoie les secondes restantes (0 = on peut envoyer). Sans compte à
+// rebours, rien ne bloque : la nouvelle alerte remplace l'ancienne.
+function busySeconds(lastAlert: any, nowMs: number): number {
+  if (!lastAlert || typeof lastAlert !== "object") return 0;
+  const sentAt = Number(lastAlert.sentAt);
+  const cd = Number(lastAlert.cd);
+  if (!Number.isFinite(sentAt) || !Number.isFinite(cd) || cd <= 0) return 0;
+  const left = sentAt + cd * 1000 - nowMs;
+  return left > 0 ? Math.ceil(left / 1000) : 0;
 }
 
 // Envoie l'alerte à chaque membre sur SON sujet, avec SES prénoms.
@@ -452,6 +464,7 @@ export default async function () {
     const id = String(doc.name).split("/").pop();
     const f = parseFields(doc.fields);
     const cfg = f.notifConfig || {};
+    let lastAlert = f.lastAlert;
     if (cfg.enabled === false) continue;
 
     const timeLimit = cfg.timeLimit !== false;
@@ -482,11 +495,20 @@ export default async function () {
       if (!(times[i] <= nowMin && times[i] > nowMin - 20)) continue;
       const key = `${dateStr}|${id}|${i}`;
       if (sent[key]) continue;
+      // Une alerte est encore en cours (compte à rebours pas fini) : on
+      // n'envoie pas ; on réessaiera au prochain passage si l'horaire est
+      // encore dans la fenêtre.
+      const busy = busySeconds(lastAlert, Date.now());
+      if (busy > 0) {
+        console.log(`Alerte ${key} reportée : une alerte est en cours (${busy} s)`);
+        continue;
+      }
       sent[key] = true; // marqué d'office : jamais de double envoi
       const alertId = `${id}_${dateStr}_${i}`;
       try {
         const members = await fetchMembers(token, project, id!);
         const n = await sendAlert(token, project, id!, alertId, members, cfg);
+        if (n > 0) lastAlert = { sentAt: Date.now(), cd: countdownOf(cfg) };
         console.log(`Alerte ${alertId} : ${n} message(s) envoyé(s)`);
       } catch (e) {
         console.error(`Alerte ${alertId} en échec :`, e);

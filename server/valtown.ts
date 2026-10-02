@@ -267,7 +267,7 @@ function buildMemberMessage(
         notification: {
           channel_id: "vershoq_shots",
           sound: "default",
-          tag: alertId,
+          tag: `snap_${groupId}`, // remplace la notif précédente du groupe
         },
       },
       apns: { payload: { aps: { sound: "default" } } },
@@ -318,6 +318,18 @@ async function recordLastAlert(
     },
   );
   if (!r.ok) throw new Error(`lastAlert ${r.status}: ${await r.text()}`);
+}
+
+// Alerte encore « en cours » : son compte à rebours n'est pas fini.
+// Renvoie les secondes restantes (0 = on peut envoyer). Sans compte à
+// rebours, rien ne bloque : la nouvelle alerte remplace l'ancienne.
+function busySeconds(lastAlert: any, nowMs: number): number {
+  if (!lastAlert || typeof lastAlert !== "object") return 0;
+  const sentAt = Number(lastAlert.sentAt);
+  const cd = Number(lastAlert.cd);
+  if (!Number.isFinite(sentAt) || !Number.isFinite(cd) || cd <= 0) return 0;
+  const left = sentAt + cd * 1000 - nowMs;
+  return left > 0 ? Math.ceil(left / 1000) : 0;
 }
 
 // Envoie l'alerte à chaque membre sur SON sujet, avec SES prénoms.
@@ -439,7 +451,14 @@ export default async function (req: Request): Promise<Response> {
       return json({ ok: false, error: "group not found" }, 404);
     }
     if (!g.ok) throw new Error(`group ${g.status}: ${await g.text()}`);
-    const cfg = parseFields((await g.json()).fields).notifConfig || {};
+    const gf = parseFields((await g.json()).fields);
+    const cfg = gf.notifConfig || {};
+
+    // Une alerte est encore en cours (compte à rebours pas fini) : refus.
+    const busy = busySeconds(gf.lastAlert, Date.now());
+    if (busy > 0) {
+      return json({ ok: false, error: "busy", remaining: busy }, 409);
+    }
 
     const members = await fetchMembers(token, project, groupId);
     const alertId = `${groupId}_m_${Date.now()}`;
