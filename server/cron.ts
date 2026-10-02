@@ -485,6 +485,29 @@ async function fetchMembers(
   return (j.documents || []).map((d: any) => parseFields(d.fields));
 }
 
+// ── Planning du jour ──────────────────────────────────────────────────────────
+// Le planning d'un groupe est tiré au hasard UNE fois (premier passage du
+// jour) puis gardé (Blob « snapit_plan »). Si l'admin change les réglages
+// dans la journée, le planning est refait pour le RESTE de la journée, en
+// comptant les alertes déjà envoyées : le minimum demandé est respecté.
+type DayPlan = { date: string; cfgKey: string; times: number[] };
+
+// Alertes réparties dans des créneaux égaux (une par créneau, à une minute
+// au hasard) : bien étalées, jamais deux dans le même quart d'heure si la
+// plage le permet.
+function drawTimes(n: number, from: number, to: number): number[] {
+  if (n <= 0 || to < from) return [];
+  const span = to - from + 1;
+  const k = Math.min(n, span);
+  const out: number[] = [];
+  for (let i = 0; i < k; i++) {
+    const a = from + Math.floor((span * i) / k);
+    const b = from + Math.floor((span * (i + 1)) / k) - 1;
+    out.push(a + Math.floor(Math.random() * (b - a + 1)));
+  }
+  return [...new Set(out)].sort((x, y) => x - y);
+}
+
 export default async function () {
   const SA = JSON.parse(Deno.env.get("FIREBASE_SA") || "{}");
   const project = SA.project_id;
@@ -509,49 +532,74 @@ export default async function () {
     `${String(Math.floor(m / 60)).padStart(2, "0")}h${String(m % 60).padStart(2, "0")}`;
   console.log(`Passage du ${dateStr} à ${hm(nowMin)} : ${docs.length} groupe(s)`);
 
-  // Anti-doublon : alertes déjà traitées aujourd'hui, repérées par leur
-  // HEURE (pas leur rang) : si l'admin change les réglages dans la journée,
-  // les nouveaux horaires sont bien pris en compte. Valeur = résultat.
+  // Alertes déjà traitées aujourd'hui (clé = groupe + heure ; valeur = résultat).
   const sent: Record<string, unknown> =
     (await blob.getJSON("snapit_sent")) || {};
   for (const k of Object.keys(sent)) {
     if (!k.startsWith(dateStr)) delete sent[k]; // purge des jours passés
   }
+  // Plannings du jour par groupe.
+  const plans: Record<string, DayPlan> =
+    (await blob.getJSON("snapit_plan")) || {};
 
   for (const doc of docs) {
-    const id = String(doc.name).split("/").pop();
+    const id = String(doc.name).split("/").pop()!;
     const f = parseFields(doc.fields);
     const cfg = f.notifConfig || {};
     let lastAlert = f.lastAlert;
     const label = `${f.name ?? "?"} (${id})`;
     if (cfg.enabled === false) {
       console.log(`${label} : notifications désactivées`);
+      delete plans[id];
       continue;
     }
 
     const timeLimit = cfg.timeLimit !== false;
     const startHour = Math.trunc(Number(timeLimit ? (cfg.startHour ?? 9) : 0));
     const endHour = Math.trunc(Number(timeLimit ? (cfg.endHour ?? 21) : 23));
-    const minCount = Math.trunc(Number(cfg.minCount ?? 2));
-    const maxCount = Math.trunc(Number(cfg.maxCount ?? 5));
+    const minCount = Math.max(0, Math.trunc(Number(cfg.minCount ?? 2)));
+    const maxCount = Math.max(minCount, Math.trunc(Number(cfg.maxCount ?? 5)));
+    const dayStart = startHour * 60;
+    const dayEnd = endHour * 60 + 59;
+    if (dayEnd < dayStart) continue;
 
-    const total = (endHour - startHour) * 60 + 59;
-    if (total <= 0) continue;
+    const prefix = `${dateStr}|${id}|`;
+    const keyOf = (t: number) => `${prefix}${hm(t)}`;
+    // Alertes vraiment parties aujourd'hui pour ce groupe.
+    const doneToday = Object.entries(sent).filter(([k, v]) =>
+      k.startsWith(prefix) && typeof v === "string" && v.startsWith("envoyée")
+    ).length;
 
-    // Horaires du jour (déterministes par groupe + date).
-    const rng = mulberry32(stableHash(`${id}|${dateStr}`));
-    const range = Math.abs(maxCount - minCount);
-    const count = minCount + (range === 0 ? 0 : Math.floor(rng() * (range + 1)));
-    const drawn: number[] = [];
-    for (let i = 0; i < count; i++) {
-      drawn.push(startHour * 60 + Math.floor(rng() * total));
+    // (Re)fait le planning : nouveau jour, ou réglages modifiés.
+    const cfgKey = `${startHour}-${endHour}-${minCount}-${maxCount}`;
+    let plan = plans[id];
+    if (!plan || plan.date !== dateStr || plan.cfgKey !== cfgKey) {
+      const target = minCount +
+        Math.floor(Math.random() * (maxCount - minCount + 1));
+      // On ne planifie que le RESTE de la plage (à partir de maintenant),
+      // pour les alertes qui manquent encore aujourd'hui : en début de
+      // journée c'est toute la plage ; si les réglages changent en cours de
+      // journée, le minimum reste respecté.
+      const from = Math.max(dayStart, nowMin + 1);
+      const remaining = Math.max(0, target - doneToday);
+      const kept = plan && plan.date === dateStr
+        ? plan.times.filter((t) => t <= nowMin && sent[keyOf(t)])
+        : [];
+      plan = {
+        date: dateStr,
+        cfgKey,
+        times: [...kept, ...drawTimes(remaining, from, dayEnd)],
+      };
+      plans[id] = plan;
+      console.log(
+        `${label} : nouveau planning (${minCount}-${maxCount}/jour, objectif ${target}, déjà envoyées ${doneToday})`,
+      );
     }
-    // Horaires uniques et triés (deux tirages à la même minute = une alerte).
-    const times = [...new Set(drawn)].sort((a, b) => a - b);
-    const keyOf = (t: number) => `${dateStr}|${id}|${hm(t)}`;
+    const times = plan.times;
+
     const status = (t: number) => {
       const v = sent[keyOf(t)];
-      if (!v) return t <= nowMin ? " (pas envoyée)" : "";
+      if (!v) return t <= nowMin ? " (en attente)" : "";
       return typeof v === "string" ? ` (${v})` : " ✓";
     };
     console.log(
@@ -560,28 +608,26 @@ export default async function () {
       }`,
     );
 
-    for (let i = 0; i < times.length; i++) {
-      // Le cron tourne toutes les ~15 min (plan gratuit Val Town). On déclenche
-      // toute alerte devenue due depuis le dernier passage (fenêtre glissante de
-      // 20 min) ; le marqueur `sent` évite les doublons. L'alerte part donc au
-      // plus tard ~15 min après son horaire aléatoire — mais à tout le monde en
-      // même temps, et sans accumulation.
-      if (!(times[i] <= nowMin && times[i] > nowMin - 20)) continue;
-      const key = keyOf(times[i]);
+    for (const t of times) {
+      // Le cron tourne toutes les ~15 min (plan gratuit Val Town) : on envoie
+      // toute alerte devenue due depuis moins de 45 min (marge si une alerte
+      // a dû attendre la fin d'un compte à rebours) ; `sent` évite les
+      // doublons.
+      if (!(t <= nowMin && t > nowMin - 45)) continue;
+      const key = keyOf(t);
       if (sent[key]) continue;
       // Une alerte est encore en cours (compte à rebours pas fini) : on
-      // n'envoie pas ; on réessaiera au prochain passage si l'horaire est
-      // encore dans la fenêtre.
+      // réessaiera au prochain passage.
       const busy = busySeconds(lastAlert, Date.now());
       if (busy > 0) {
-        console.log(`Alerte ${key} reportée : une alerte est en cours (${busy} s)`);
+        console.log(`Alerte ${hm(t)} reportée : une alerte est en cours (${busy} s)`);
         continue;
       }
       sent[key] = "en cours"; // marqué d'office : jamais de double envoi
-      const alertId = `${id}_${dateStr}_${hm(times[i])}`;
+      const alertId = `${id}_${dateStr}_${hm(t)}`;
       try {
-        const members = await fetchMembers(token, project, id!);
-        const rep = await sendAlert(token, project, id!, alertId, members, cfg);
+        const members = await fetchMembers(token, project, id);
+        const rep = await sendAlert(token, project, id, alertId, members, cfg);
         if (rep.sent > 0) {
           lastAlert = { sentAt: Date.now(), cd: countdownOf(cfg) };
         }
@@ -601,5 +647,10 @@ export default async function () {
     }
   }
 
+  // Plannings d'autres jours : inutiles.
+  for (const k of Object.keys(plans)) {
+    if (plans[k].date !== dateStr) delete plans[k];
+  }
+  await blob.setJSON("snapit_plan", plans);
   await blob.setJSON("snapit_sent", sent);
 }
