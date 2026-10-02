@@ -509,8 +509,10 @@ export default async function () {
     `${String(Math.floor(m / 60)).padStart(2, "0")}h${String(m % 60).padStart(2, "0")}`;
   console.log(`Passage du ${dateStr} à ${hm(nowMin)} : ${docs.length} groupe(s)`);
 
-  // Anti-doublon : on retient les alertes déjà envoyées aujourd'hui.
-  const sent: Record<string, boolean> =
+  // Anti-doublon : alertes déjà traitées aujourd'hui, repérées par leur
+  // HEURE (pas leur rang) : si l'admin change les réglages dans la journée,
+  // les nouveaux horaires sont bien pris en compte. Valeur = résultat.
+  const sent: Record<string, unknown> =
     (await blob.getJSON("snapit_sent")) || {};
   for (const k of Object.keys(sent)) {
     if (!k.startsWith(dateStr)) delete sent[k]; // purge des jours passés
@@ -540,14 +542,21 @@ export default async function () {
     const rng = mulberry32(stableHash(`${id}|${dateStr}`));
     const range = Math.abs(maxCount - minCount);
     const count = minCount + (range === 0 ? 0 : Math.floor(rng() * (range + 1)));
-    const times: number[] = [];
+    const drawn: number[] = [];
     for (let i = 0; i < count; i++) {
-      times.push(startHour * 60 + Math.floor(rng() * total));
+      drawn.push(startHour * 60 + Math.floor(rng() * total));
     }
-    times.sort((a, b) => a - b);
+    // Horaires uniques et triés (deux tirages à la même minute = une alerte).
+    const times = [...new Set(drawn)].sort((a, b) => a - b);
+    const keyOf = (t: number) => `${dateStr}|${id}|${hm(t)}`;
+    const status = (t: number) => {
+      const v = sent[keyOf(t)];
+      if (!v) return t <= nowMin ? " (pas envoyée)" : "";
+      return typeof v === "string" ? ` (${v})` : " ✓";
+    };
     console.log(
-      `${label} : ${times.length} alerte(s) prévue(s) aujourd'hui (${startHour}h-${endHour}h59) à ${
-        times.map((t, i) => `${hm(t)}${sent[`${dateStr}|${id}|${i}`] ? " ✓" : ""}`).join(", ")
+      `${label} : ${times.length} alerte(s) aujourd'hui (${startHour}h-${endHour}h59) à ${
+        times.map((t) => `${hm(t)}${status(t)}`).join(", ")
       }`,
     );
 
@@ -558,7 +567,7 @@ export default async function () {
       // plus tard ~15 min après son horaire aléatoire — mais à tout le monde en
       // même temps, et sans accumulation.
       if (!(times[i] <= nowMin && times[i] > nowMin - 20)) continue;
-      const key = `${dateStr}|${id}|${i}`;
+      const key = keyOf(times[i]);
       if (sent[key]) continue;
       // Une alerte est encore en cours (compte à rebours pas fini) : on
       // n'envoie pas ; on réessaiera au prochain passage si l'horaire est
@@ -568,18 +577,25 @@ export default async function () {
         console.log(`Alerte ${key} reportée : une alerte est en cours (${busy} s)`);
         continue;
       }
-      sent[key] = true; // marqué d'office : jamais de double envoi
-      const alertId = `${id}_${dateStr}_${i}`;
+      sent[key] = "en cours"; // marqué d'office : jamais de double envoi
+      const alertId = `${id}_${dateStr}_${hm(times[i])}`;
       try {
         const members = await fetchMembers(token, project, id!);
         const rep = await sendAlert(token, project, id!, alertId, members, cfg);
         if (rep.sent > 0) {
           lastAlert = { sentAt: Date.now(), cd: countdownOf(cfg) };
         }
+        sent[key] = rep.total === 0
+          ? "personne à prévenir"
+          : `envoyée à ${rep.sent}/${rep.total}`;
         console.log(
           `Alerte ${alertId} : ${rep.sent}/${rep.total} message(s) envoyé(s)`,
         );
+        if (rep.errors.length > 0) {
+          console.error(`Erreurs pour ${alertId} : ${rep.errors.join(" | ")}`);
+        }
       } catch (e) {
+        sent[key] = "échec";
         console.error(`Alerte ${alertId} en échec :`, e);
       }
     }
