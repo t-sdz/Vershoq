@@ -253,7 +253,9 @@ class NotificationService {
 
   /// Enregistre une alerte (dédoublonnée par id : si elle existe déjà, on
   /// garde l'entrée existante). Purge les alertes de plus de 24 h. Renvoie
-  /// l'alerte stockée. Utilisable depuis l'isolat d'arrière-plan.
+  /// l'alerte stockée — ou l'alerte PLUS RÉCENTE du groupe si [m] a déjà été
+  /// remplacée (comparer l'id renvoyé). Utilisable depuis l'isolat
+  /// d'arrière-plan.
   static Future<AlertMoment> upsertAlert(AlertMoment m) async {
     final prefs = await SharedPreferences.getInstance();
     // Relit le disque : l'autre isolat (premier plan / arrière-plan) a pu
@@ -264,10 +266,24 @@ class NotificationService {
         .where((e) => e.sentAtMs >= nowMs - _pruneAfterMs)
         .toList();
     final existing = list.where((e) => e.id == m.id);
+    // Alerte plus récente déjà connue pour ce groupe : [m] a été remplacée
+    // (ex. on tape la notif d'une ancienne alerte) → on ne la réarme pas.
+    AlertMoment? newer;
+    for (final e in list) {
+      if (e.groupId == m.groupId &&
+          e.id != m.id &&
+          e.sentAtMs > m.sentAtMs &&
+          (newer == null || e.sentAtMs > newer.sentAtMs)) {
+        newer = e;
+      }
+    }
     final AlertMoment stored;
     final superseded = <String>[];
     if (existing.isNotEmpty) {
       stored = existing.first;
+    } else if (newer != null) {
+      await _cancelTray(m.id);
+      return newer;
     } else {
       stored = m;
       // Une nouvelle alerte annule et remplace les précédentes du groupe
@@ -384,6 +400,7 @@ class NotificationService {
         999001,
         "📸 Snap'It",
         'Notif de test : les notifications fonctionnent sur ce téléphone.',
+        payload: 'test',
         const NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,

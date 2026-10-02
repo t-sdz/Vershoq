@@ -381,11 +381,6 @@ async function sendAlert(
   const sentAtMs = Date.now(); // même horodatage pour tous les membres
   const errors: string[] = [];
   if (parts.length === 0) return { sent: 0, total: 0, errors };
-  try {
-    await recordLastAlert(token, project, groupId, alertId, sentAtMs, cd, parts);
-  } catch (e) {
-    console.error(`lastAlert en échec (${alertId}) :`, e);
-  }
   let ok = 0;
   for (const { email, names } of parts) {
     try {
@@ -418,6 +413,15 @@ async function sendAlert(
     } catch (e) {
       console.error(`FCM erreur pour ${email} (${alertId}) :`, e);
       errors.push(`FCM erreur : ${String(e).slice(0, 200)}`);
+    }
+  }
+  // Mémorise l'alerte seulement si elle est vraiment partie : un échec ne
+  // bloque pas le groupe (409) et n'apparaît pas dans l'app.
+  if (ok > 0) {
+    try {
+      await recordLastAlert(token, project, groupId, alertId, sentAtMs, cd, parts);
+    } catch (e) {
+      console.error(`lastAlert en échec (${alertId}) :`, e);
     }
   }
   return { sent: ok, total: parts.length, errors };

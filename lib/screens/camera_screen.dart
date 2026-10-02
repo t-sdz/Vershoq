@@ -82,9 +82,23 @@ class _CameraScreenState extends State<CameraScreen>
       await PushService.syncLastAlert();
       m = await NotificationService.momentById(id);
     }
-    // Notif d'une alerte remplacée par une plus récente : on ouvre la
-    // caméra pour l'alerte EN COURS du groupe.
-    m ??= await NotificationService.peekActiveAlert();
+    // Sans compte à rebours, une alerte plus récente a pu la remplacer sans
+    // que ce téléphone l'ait reçue : on vérifie vite sur le serveur.
+    if (m != null && !m.hasCountdown) {
+      try {
+        await PushService.syncLastAlert()
+            .timeout(const Duration(seconds: 3));
+      } catch (_) {}
+    }
+    // Alerte remplacée par une plus récente : on ouvre la caméra pour
+    // l'alerte EN COURS du groupe.
+    final cur = await NotificationService.peekActiveAlert();
+    if (m == null ||
+        (cur != null &&
+            cur.groupId == m.groupId &&
+            cur.sentAtMs > m.sentAtMs)) {
+      m = cur ?? m;
+    }
     final consumed = m == null || await NotificationService.isConsumed(m.id);
     if (!mounted) return;
     if (m == null || consumed) {

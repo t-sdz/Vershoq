@@ -202,9 +202,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'Réinscrit ce téléphone aux alertes et affiche une notif de test',
             style: TextStyle(color: VTheme.warmMuted, fontSize: 12)),
         onTap: () async {
-          try {
-            await PushService.reconcileSubscriptions();
-          } catch (_) {}
+          // Réinscription en arrière-plan (ne bloque pas le test).
+          PushService.reconcileSubscriptions().catchError((_) {});
           final enabled = await NotificationService.showTestNotification();
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(

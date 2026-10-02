@@ -111,11 +111,9 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     if (_refreshing) return; // déjà en cours (retour rapide dans l'app)
     _refreshing = true;
     try {
-      // D'abord : (ré)abonne ce téléphone à son topic personnel, sinon il ne
-      // reçoit pas les notifs.
-      try {
-        await PushService.reconcileSubscriptions();
-      } catch (_) {}
+      // (Ré)abonne ce téléphone à son topic personnel (sinon il ne reçoit
+      // pas les notifs), sans bloquer le reste du rafraîchissement.
+      PushService.reconcileSubscriptions().catchError((_) {});
       // Récupère la dernière alerte du serveur si la notif n'a pas été
       // traitée en arrière-plan (sinon « pas de photo à prendre »).
       await PushService.syncLastAlert();

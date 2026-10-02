@@ -39,13 +39,11 @@ Future<void> main() async {
   // Tap sur une notif locale (app ouverte ou en arrière-plan).
   await NotificationService.init(
     onTap: (payload) {
+      // Seules les notifs d'ALERTE ouvrent la caméra (une photo par
+      // alerte). Les autres (notif de test, anciennes versions) ouvrent
+      // simplement l'app.
       final alertId = NotificationService.alertIdFromPayload(payload);
-      if (alertId != null) {
-        openCameraForAlert(alertId);
-      } else {
-        // Ancien payload (prénoms) : caméra « libre ».
-        _pushCamera(CameraScreen(personName: payload));
-      }
+      if (alertId != null) openCameraForAlert(alertId);
     },
   );
 

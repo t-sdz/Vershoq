@@ -104,6 +104,7 @@ class PushService {
           if (alert == null) return;
           if (!await isForCurrentGroup(alert)) return; // autre groupe
           final stored = await NotificationService.upsertAlert(alert);
+          if (stored.id != alert.id) return; // déjà remplacée
           await NotificationService.showAlertNotification(
             stored,
             title: m.notification?.title,
@@ -125,8 +126,9 @@ class PushService {
         try {
           final alert = PushService.parseAlert(m);
           if (alert == null) return;
-          await NotificationService.upsertAlert(alert);
-          onOpenAlert?.call(alert.id);
+          // Si cette alerte a été remplacée, on ouvre la plus récente.
+          final stored = await NotificationService.upsertAlert(alert);
+          onOpenAlert?.call(stored.id);
         } catch (e) {
           debugPrint('PushService.onMessageOpenedApp: $e');
         }
@@ -145,8 +147,8 @@ class PushService {
       if (msg == null) return null;
       final alert = parseAlert(msg);
       if (alert == null) return null;
-      await NotificationService.upsertAlert(alert);
-      return alert.id;
+      final stored = await NotificationService.upsertAlert(alert);
+      return stored.id;
     } catch (e) {
       debugPrint('PushService.initialTapAlert: $e');
       return null;
@@ -234,7 +236,9 @@ class PushService {
     var ok = true;
     for (final id in ids) {
       try {
-        await FirebaseMessaging.instance.unsubscribeFromTopic('group_$id');
+        await FirebaseMessaging.instance
+            .unsubscribeFromTopic('group_$id')
+            .timeout(_topicTimeout);
       } catch (_) {
         ok = false;
       }
@@ -248,8 +252,20 @@ class PushService {
   /// Réconcilie les abonnements FCM : un seul topic voulu, le topic personnel
   /// de l'utilisateur connecté. Se désabonne de tout autre topic mémorisé
   /// (ancien compte…). Appelé à chaque ouverture de l'app.
-  static Future<void> reconcileSubscriptions() async {
-    if (kIsWeb) return;
+  /// Délai max d'un (dés)abonnement : hors ligne, Android peut ne jamais
+  /// répondre ; on réessaiera à la prochaine ouverture.
+  static const _topicTimeout = Duration(seconds: 8);
+
+  /// Réconciliation en cours (partagée entre les appels simultanés).
+  static Future<void>? _reconciling;
+
+  static Future<void> reconcileSubscriptions() {
+    if (kIsWeb) return Future.value();
+    return _reconciling ??=
+        _reconcile().whenComplete(() => _reconciling = null);
+  }
+
+  static Future<void> _reconcile() async {
     await _migrateLegacyGroupTopics();
     final email = (await GroupService.getCurrentUser())?.email ??
         FirebaseAuth.instance.currentUser?.email ??
@@ -261,7 +277,9 @@ class PushService {
     final kept = <String>{};
     for (final t in have.difference(want)) {
       try {
-        await FirebaseMessaging.instance.unsubscribeFromTopic(t);
+        await FirebaseMessaging.instance
+            .unsubscribeFromTopic(t)
+            .timeout(_topicTimeout);
       } catch (_) {
         kept.add(t); // on réessaiera la prochaine fois
       }
@@ -271,7 +289,9 @@ class PushService {
       // lié au jeton FCM du téléphone, qui peut avoir changé sans qu'on le
       // sache. L'appel est sans effet si on est déjà abonné.
       try {
-        await FirebaseMessaging.instance.subscribeToTopic(t);
+        await FirebaseMessaging.instance
+            .subscribeToTopic(t)
+            .timeout(_topicTimeout);
         kept.add(t);
       } catch (_) {
         if (have.contains(t)) kept.add(t);
