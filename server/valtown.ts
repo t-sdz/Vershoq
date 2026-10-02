@@ -322,6 +322,40 @@ async function recordLastAlert(
   if (!r.ok) throw new Error(`lastAlert ${r.status}: ${await r.text()}`);
 }
 
+// Annule la réservation « lastAlert » d'un envoi qui a totalement échoué,
+// seulement si elle est toujours la nôtre (pas écrasée entre-temps).
+async function releaseLastAlert(
+  token: string,
+  project: string,
+  groupId: string,
+  alertId: string,
+): Promise<void> {
+  const url =
+    `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents/groups/${
+      encodeURIComponent(groupId)
+    }`;
+  const g = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!g.ok) throw new Error(`group ${g.status}: ${await g.text()}`);
+  const doc = await g.json();
+  const cur = doc.fields?.lastAlert?.mapValue?.fields?.id?.stringValue;
+  if (cur !== alertId) return;
+  // Supprime le champ, à condition que le document n'ait pas changé depuis.
+  const r = await fetch(
+    `${url}?updateMask.fieldPaths=lastAlert&currentDocument.updateTime=${
+      encodeURIComponent(doc.updateTime)
+    }`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ fields: {} }),
+    },
+  );
+  if (!r.ok) throw new Error(`release ${r.status}: ${await r.text()}`);
+}
+
 // Alerte encore « en cours » : son compte à rebours n'est pas fini.
 // Renvoie les secondes restantes (0 = on peut envoyer). Sans compte à
 // rebours, rien ne bloque : la nouvelle alerte remplace l'ancienne.
@@ -353,6 +387,13 @@ async function sendAlert(
   const sentAtMs = Date.now(); // même horodatage pour tous les membres
   const errors: string[] = [];
   if (parts.length === 0) return { sent: 0, total: 0, errors };
+  // Réserve l'alerte AVANT d'envoyer : une 2e demande pendant l'envoi voit
+  // déjà l'alerte en cours (409). Annulée plus bas si rien n'est parti.
+  try {
+    await recordLastAlert(token, project, groupId, alertId, sentAtMs, cd, parts);
+  } catch (e) {
+    console.error(`lastAlert en échec (${alertId}) :`, e);
+  }
   let ok = 0;
   for (const { email, names } of parts) {
     try {
@@ -387,13 +428,13 @@ async function sendAlert(
       errors.push(`FCM erreur : ${String(e).slice(0, 200)}`);
     }
   }
-  // Mémorise l'alerte seulement si elle est vraiment partie : un échec ne
-  // bloque pas le groupe (409) et n'apparaît pas dans l'app.
-  if (ok > 0) {
+  // Rien n'est parti : on libère la réservation (le groupe n'est pas
+  // bloqué et l'alerte n'apparaît pas dans l'app).
+  if (ok === 0) {
     try {
-      await recordLastAlert(token, project, groupId, alertId, sentAtMs, cd, parts);
+      await releaseLastAlert(token, project, groupId, alertId);
     } catch (e) {
-      console.error(`lastAlert en échec (${alertId}) :`, e);
+      console.error(`Libération lastAlert en échec (${alertId}) :`, e);
     }
   }
   return { sent: ok, total: parts.length, errors };

@@ -217,7 +217,9 @@ class PushService {
   static Future<void> unsubscribeGroup(String groupId) async {
     if (kIsWeb) return;
     try {
-      await FirebaseMessaging.instance.unsubscribeFromTopic('group_$groupId');
+      await FirebaseMessaging.instance
+          .unsubscribeFromTopic('group_$groupId')
+          .timeout(_topicTimeout);
     } catch (_) {}
   }
 
@@ -256,13 +258,37 @@ class PushService {
   /// répondre ; on réessaiera à la prochaine ouverture.
   static const _topicTimeout = Duration(seconds: 8);
 
-  /// Réconciliation en cours (partagée entre les appels simultanés).
+  /// Réconciliation en cours (une seule à la fois) ; si on la redemande
+  /// pendant qu'elle tourne (connexion à un autre compte, nouveau jeton…),
+  /// elle est relancée une fois terminée.
   static Future<void>? _reconciling;
+  static bool _rerun = false;
 
   static Future<void> reconcileSubscriptions() {
     if (kIsWeb) return Future.value();
-    return _reconciling ??=
-        _reconcile().whenComplete(() => _reconciling = null);
+    final running = _reconciling;
+    if (running != null) {
+      _rerun = true;
+      return running;
+    }
+    final f = _reconcileLoop();
+    _reconciling = f;
+    return f;
+  }
+
+  static Future<void> _reconcileLoop() async {
+    try {
+      do {
+        _rerun = false;
+        try {
+          await _reconcile();
+        } catch (e) {
+          debugPrint('PushService.reconcile: $e');
+        }
+      } while (_rerun);
+    } finally {
+      _reconciling = null;
+    }
   }
 
   static Future<void> _reconcile() async {
@@ -292,10 +318,13 @@ class PushService {
         await FirebaseMessaging.instance
             .subscribeToTopic(t)
             .timeout(_topicTimeout);
-        kept.add(t);
       } catch (_) {
-        if (have.contains(t)) kept.add(t);
+        // Délai dépassé / erreur : Android peut encore terminer
+        // l'abonnement plus tard. On le mémorise quand même pour pouvoir
+        // s'en désabonner (changement de compte) ; on réessaiera à la
+        // prochaine ouverture.
       }
+      kept.add(t);
     }
     await _saveSubscribedSet(kept);
   }

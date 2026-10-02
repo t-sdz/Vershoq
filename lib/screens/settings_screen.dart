@@ -17,6 +17,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   // Vrai si l'utilisateur est admin du groupe actif (accès notif + chrono).
   bool _isAdmin = false;
+  bool _sending = false; // envoi admin en cours (évite le double appui)
   String? _groupId;
 
   // Notifications (config partagée du groupe)
@@ -403,17 +404,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Divider(height: 4, color: VTheme.hairline),
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.send_outlined, color: VTheme.orange),
+              leading: _sending
+                  ? SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2.5, color: VTheme.orange))
+                  : Icon(Icons.send_outlined, color: VTheme.orange),
               title: Text('Envoyer une notif à tout le groupe',
                   style: TextStyle(color: VTheme.warmDark)),
-              subtitle: Text('Notifie tous les membres en même temps',
+              subtitle: Text(
+                  _sending
+                      ? 'Envoi en cours…'
+                      : 'Notifie tous les membres en même temps',
                   style: TextStyle(color: VTheme.warmMuted, fontSize: 12)),
-              onTap: () async {
+              onTap: _sending ? null : () async {
                 // Le serveur calcule les prénoms de chacun et envoie une
                 // notif personnelle à chaque membre (expéditeur compris).
+                setState(() => _sending = true);
                 var result = const PushResult.failed();
-                if (_groupId != null) {
-                  result = await PushService.sendGroupPush(groupId: _groupId!);
+                try {
+                  if (_groupId != null) {
+                    result =
+                        await PushService.sendGroupPush(groupId: _groupId!);
+                  }
+                } finally {
+                  if (mounted) setState(() => _sending = false);
                 }
                 if (mounted) {
                   final String msg;
