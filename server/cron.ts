@@ -498,10 +498,16 @@ export default async function () {
     `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents/groups?pageSize=300`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
+  if (!res.ok) {
+    throw new Error(`Lecture des groupes impossible ${res.status}: ${await res.text()}`);
+  }
   const j = await res.json();
   const docs = j.documents || [];
 
   const { dateStr, minutes: nowMin } = nowLocal();
+  const hm = (m: number) =>
+    `${String(Math.floor(m / 60)).padStart(2, "0")}h${String(m % 60).padStart(2, "0")}`;
+  console.log(`Passage du ${dateStr} à ${hm(nowMin)} : ${docs.length} groupe(s)`);
 
   // Anti-doublon : on retient les alertes déjà envoyées aujourd'hui.
   const sent: Record<string, boolean> =
@@ -515,13 +521,17 @@ export default async function () {
     const f = parseFields(doc.fields);
     const cfg = f.notifConfig || {};
     let lastAlert = f.lastAlert;
-    if (cfg.enabled === false) continue;
+    const label = `${f.name ?? "?"} (${id})`;
+    if (cfg.enabled === false) {
+      console.log(`${label} : notifications désactivées`);
+      continue;
+    }
 
     const timeLimit = cfg.timeLimit !== false;
-    const startHour = timeLimit ? (cfg.startHour ?? 9) : 0;
-    const endHour = timeLimit ? (cfg.endHour ?? 21) : 23;
-    const minCount = cfg.minCount ?? 2;
-    const maxCount = cfg.maxCount ?? 5;
+    const startHour = Math.trunc(Number(timeLimit ? (cfg.startHour ?? 9) : 0));
+    const endHour = Math.trunc(Number(timeLimit ? (cfg.endHour ?? 21) : 23));
+    const minCount = Math.trunc(Number(cfg.minCount ?? 2));
+    const maxCount = Math.trunc(Number(cfg.maxCount ?? 5));
 
     const total = (endHour - startHour) * 60 + 59;
     if (total <= 0) continue;
@@ -535,6 +545,11 @@ export default async function () {
       times.push(startHour * 60 + Math.floor(rng() * total));
     }
     times.sort((a, b) => a - b);
+    console.log(
+      `${label} : ${times.length} alerte(s) prévue(s) aujourd'hui (${startHour}h-${endHour}h59) à ${
+        times.map((t, i) => `${hm(t)}${sent[`${dateStr}|${id}|${i}`] ? " ✓" : ""}`).join(", ")
+      }`,
+    );
 
     for (let i = 0; i < times.length; i++) {
       // Le cron tourne toutes les ~15 min (plan gratuit Val Town). On déclenche
