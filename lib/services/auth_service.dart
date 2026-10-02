@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthException implements Exception {
   final String message;
@@ -10,6 +11,27 @@ class AuthException implements Exception {
 
 class AuthService {
   static FirebaseAuth get _auth => FirebaseAuth.instance;
+
+  /// Mémorise localement qu'une session est ouverte : au démarrage, si
+  /// Firebase n'a pas encore restauré la session, on attend au lieu
+  /// d'afficher tout de suite l'écran de connexion.
+  static const _wasLoggedInKey = 'auth_was_logged_in';
+
+  static Future<bool> wasLoggedIn() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_wasLoggedInKey) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> setWasLoggedIn(bool v) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_wasLoggedInKey, v);
+    } catch (_) {}
+  }
 
   static Stream<User?> get authStateChanges => _auth.authStateChanges();
   static User? get currentUser => _auth.currentUser;
@@ -129,6 +151,7 @@ class AuthService {
   static Future<void> deleteAccount({String? currentPassword}) async {
     await reauthenticate(currentPassword: currentPassword);
     await deleteCurrentUser();
+    await setWasLoggedIn(false);
   }
 
   static bool get isPasswordUser =>
@@ -137,6 +160,7 @@ class AuthService {
       false;
 
   static Future<void> signOut() async {
+    await setWasLoggedIn(false);
     try {
       await GoogleSignIn().signOut();
     } catch (_) {}

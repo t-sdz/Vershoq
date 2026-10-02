@@ -1,6 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth, User;
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../services/auth_service.dart';
 import '../services/group_service.dart';
 import '../theme/v_theme.dart';
 import 'account_screen.dart';
@@ -14,8 +17,38 @@ import 'verify_email_screen.dart';
 /// Toutes les navigations « retour à l'accueil » (connexion, déconnexion,
 /// groupe rejoint / créé / quitté…) font un pushAndRemoveUntil vers AppRoot :
 /// on garde ainsi toujours l'écoute de la connexion.
-class AppRoot extends StatelessWidget {
+class AppRoot extends StatefulWidget {
   const AppRoot({super.key});
+
+  @override
+  State<AppRoot> createState() => _AppRootState();
+}
+
+class _AppRootState extends State<AppRoot> {
+  /// Une session était ouverte au dernier lancement (null = pas encore lu).
+  bool? _wasLoggedIn;
+
+  /// Délai pendant lequel on attend que Firebase restaure la session avant
+  /// d'afficher l'écran de connexion.
+  bool _graceOver = false;
+  Timer? _graceTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    AuthService.wasLoggedIn().then((v) {
+      if (mounted) setState(() => _wasLoggedIn = v);
+    });
+    _graceTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) setState(() => _graceOver = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _graceTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,8 +58,19 @@ class AppRoot extends StatelessWidget {
         if (snap.connectionState == ConnectionState.waiting) {
           return const _Loading();
         }
-        final user = snap.data;
-        if (user == null) return const LoginScreen();
+        final user = snap.data ?? FirebaseAuth.instance.currentUser;
+        if (user == null) {
+          // Session ouverte la dernière fois : on laisse à Firebase le temps
+          // de la restaurer au lieu de redemander la connexion.
+          if (_wasLoggedIn == null || (_wasLoggedIn! && !_graceOver)) {
+            return const _Loading();
+          }
+          return const LoginScreen();
+        }
+        if (_wasLoggedIn != true) {
+          _wasLoggedIn = true;
+          AuthService.setWasLoggedIn(true);
+        }
         // Vérifie l'email en rafraîchissant le statut APRÈS la restauration
         // de session (sinon l'ancien statut « non vérifié » en cache
         // renverrait sur l'écran de vérification à chaque ouverture).
